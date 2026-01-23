@@ -1,0 +1,603 @@
+# Kconfig.projbuild
+menu "UMNI Configuration"
+
+    config UMNI_FW_VERSION
+        string "Firmware version"
+        default "1.0.0"
+        help
+            Firmware version string
+
+    # ============================================
+    # Network Interfaces
+    # ============================================
+    menu "Network Interfaces"
+        config UM_FEATURE_ETHERNET
+            bool "Enable Ethernet"
+            default n
+            help
+                Enable Ethernet support (W5500)
+
+        config UM_FEATURE_WIFI
+            bool "Enable WiFi"
+            default n
+            help
+                Enable WiFi support
+        
+
+        config UM_FEATURE_SDCARD
+            bool "Enable SD Card"
+            default n
+            help
+                Enable MicroSD card support
+    endmenu
+
+    # ============================================
+    # Communication Protocols
+    # ============================================
+    menu "Communication Protocols"
+        config UM_FEATURE_WEBSERVER
+            bool "Enable Web Server"
+            default n
+            help
+                Enable HTTP REST Server
+
+        config UM_FEATURE_WEBHOOKS
+            bool "Enable Webhooks"
+            default n
+            help
+                Enable HTTP Webhooks
+
+        config UM_FEATURE_MQTT
+            bool "Enable MQTT"
+            default n
+            help
+                Enable MQTT Client
+
+        config UM_FEATURE_OPENTHERM
+            bool "Enable OpenTherm"
+            default n
+            help
+                Enable OpenTherm protocol
+
+        config UM_FEATURE_RF433
+            bool "Enable RF433"
+            default n
+            help
+                Enable RF433 receiver
+
+        config UM_FEATURE_ONEWIRE
+            bool "Enable 1-Wire"
+            default n
+            help
+                Enable 1-Wire bus
+    endmenu
+
+    # ============================================
+    # Sensors and Inputs
+    # ============================================
+    menu "Sensors and Inputs"
+        config UM_FEATURE_ALARM
+            bool "Enable Alarm Input"
+            default n
+            help
+                Enable 12V alarm input
+
+        config UM_FEATURE_ADC
+            bool "Enable ADC"
+            default n
+            help
+                Enable Analog-Digital Converter
+
+        config UM_FEATURE_NTC1
+            bool "Enable NTC Sensor 1"
+            default n
+            help
+                Enable NTC temperature sensor 1
+
+        config UM_FEATURE_NTC2
+            bool "Enable NTC Sensor 2"
+            default n
+            help
+                Enable NTC temperature sensor 2
+
+        config UM_FEATURE_AI1
+            bool "Enable Analog Input 1"
+            default n
+            help
+                Enable Analog Input 1
+
+        config UM_FEATURE_AI2
+            bool "Enable Analog Input 2"
+            default n
+            help
+                Enable Analog Input 2
+    endmenu
+
+    # ============================================
+    # Outputs
+    # ============================================
+    menu "Outputs"
+        config UM_FEATURE_OPENCOLLECTORS
+            bool "Enable Open Collectors"
+            default n
+            help
+                Enable Open Collector outputs
+
+        if UM_FEATURE_OPENCOLLECTORS
+            config UM_FEATURE_OC1
+                bool "Enable Open Collector 1"
+                default n
+                help
+                    Enable Open Collector output 1
+
+            config UM_FEATURE_OC2
+                bool "Enable Open Collector 2"
+                default n
+                help
+                    Enable Open Collector output 2
+        endif
+
+        config UM_FEATURE_BUZZER
+            bool "Enable Buzzer"
+            default n
+            help
+                Enable buzzer output
+
+        config UM_FEATURE_INPUTS
+            bool "Enable Digital Inputs (PCF8574)"
+            default n
+            help
+                Enable PCF8574 digital inputs
+
+        if UM_FEATURE_INPUTS
+            config UM_FEATURE_INP1
+                bool "Enable Input 1"
+                default n
+                help
+                    Enable digital input 1
+
+            config UM_FEATURE_INP2
+                bool "Enable Input 2"
+                default n
+                help
+                    Enable digital input 2
+
+            config UM_FEATURE_INP3
+                bool "Enable Input 3"
+                default n
+                help
+                    Enable digital input 3
+
+            config UM_FEATURE_INP4
+                bool "Enable Input 4"
+                default n
+                help
+                    Enable digital input 4
+
+            config UM_FEATURE_INP5
+                bool "Enable Input 5"
+                default n
+                help
+                    Enable digital input 5
+
+            config UM_FEATURE_INP6
+                bool "Enable Input 6"
+                default n
+                help
+                    Enable digital input 6
+        endif
+
+        config UM_FEATURE_OUTPUTS
+            bool "Enable Digital Outputs (PCF8574)"
+            default n
+            help
+                Enable PCF8574 digital outputs
+
+        if UM_FEATURE_OUTPUTS
+            config UM_FEATURE_OUT1
+                bool "Enable Output 1"
+                default n
+                help
+                    Enable digital output 1
+
+            config UM_FEATURE_OUT2
+                bool "Enable Output 2"
+                default n
+                help
+                    Enable digital output 2
+
+            config UM_FEATURE_OUT3
+                bool "Enable Output 3"
+                default n
+                help
+                    Enable digital output 3
+
+            config UM_FEATURE_OUT4
+                bool "Enable Output 4"
+                default n
+                help
+                    Enable digital output 4
+
+            config UM_FEATURE_OUT5
+                bool "Enable Output 5"
+                default n
+                help
+                    Enable digital output 5
+
+            config UM_FEATURE_OUT6
+                bool "Enable Output 6"
+                default n
+                help
+                    Enable digital output 6
+
+            config UM_FEATURE_OUT7
+                bool "Enable Output 7"
+                default n
+                help
+                    Enable digital output 7
+
+            config UM_FEATURE_OUT8
+                bool "Enable Output 8"
+                default n
+                help
+                    Enable digital output 8
+        endif
+    endmenu
+
+    # ============================================
+    # SD Card Configuration
+    # ============================================
+    menu "SD Card Configuration"
+        depends on UM_FEATURE_SDCARD
+
+        config SDSPI_CS_GPIO
+            int "SD Card Chip Select GPIO"
+            range 0 39
+            default 32
+            help
+                GPIO for SD card chip select
+
+        config SDSPI_DETECT_GPIO
+            int "SD Card Detect GPIO"
+            range 0 39
+            default 33
+            help
+                GPIO for SD card detect
+    endmenu
+
+    # ============================================
+    # I2C Configuration (PCF8574)
+    # ============================================
+    menu "I2C Configuration"
+        config I2C_MASTER_SDA_GPIO
+            int "I2C SDA GPIO"
+            range 0 39
+            default 23
+            help
+                GPIO for I2C SDA (PCF8574)
+
+        config I2C_MASTER_SCL_GPIO
+            int "I2C SCL GPIO"
+            range 0 39
+            default 22
+            help
+                GPIO for I2C SCL (PCF8574)
+    endmenu
+
+    # ============================================
+    # OpenTherm Configuration
+    # ============================================
+    menu "OpenTherm Configuration"
+        depends on UM_FEATURE_OPENTHERM
+
+        config UM_CFG_OT_IN_GPIO
+            int "OpenTherm Input GPIO"
+            range 0 39
+            default 26
+            help
+                GPIO for OpenTherm input
+
+        config UM_CFG_OT_OUT_GPIO
+            int "OpenTherm Output GPIO"
+            range 0 39
+            default 25
+            help
+                GPIO for OpenTherm output
+    endmenu
+
+    # ============================================
+    # RF433 Configuration
+    # ============================================
+    menu "RF433 Configuration"
+        depends on UM_FEATURE_RF433
+
+        config UM_CFG_RF433_DATA_GPIO
+            int "RF433 Data GPIO"
+            range 0 39
+            default 27
+            help
+                GPIO for RF433 data
+    endmenu
+
+    # ============================================
+    # 1-Wire Configuration
+    # ============================================
+    menu "1-Wire Configuration"
+        depends on UM_FEATURE_ONEWIRE
+
+        config UM_CFG_ONEWIRE_GPIO
+            int "1-Wire GPIO"
+            range 0 39
+            default 17
+            help
+                GPIO for 1-Wire bus
+    endmenu
+
+    # ============================================
+    # Alarm Configuration
+    # ============================================
+    menu "Alarm Configuration"
+        depends on UM_FEATURE_ALARM
+
+        config UM_CFG_ALARM_GPIO
+            int "Alarm Input GPIO"
+            range 0 39
+            default 13
+            help
+                GPIO for 12V alarm input
+    endmenu
+
+    # ============================================
+    # NTC Sensors Configuration
+    # ============================================
+    menu "NTC Sensors Configuration"
+        depends on UM_FEATURE_NTC1 || UM_FEATURE_NTC2
+
+        choice UM_CFG_NTC1_ADC_CHANNEL
+            prompt "NTC Sensor 1 ADC Channel"
+            default UM_CFG_NTC1_ADC_CHANNEL_0
+            help
+                ADC channel for NTC sensor 1
+
+            config UM_CFG_NTC1_ADC_CHANNEL_0
+                bool "ADC1 Channel 0 (GPIO 36)"
+            config UM_CFG_NTC1_ADC_CHANNEL_3
+                bool "ADC1 Channel 3 (GPIO 39)"
+            config UM_CFG_NTC1_ADC_CHANNEL_6
+                bool "ADC1 Channel 6 (GPIO 34)"
+            config UM_CFG_NTC1_ADC_CHANNEL_7
+                bool "ADC1 Channel 7 (GPIO 35)"
+        endchoice
+
+        config UM_CFG_NTC1_ADC_CHANNEL
+            int
+            default 0 if UM_CFG_NTC1_ADC_CHANNEL_0
+            default 3 if UM_CFG_NTC1_ADC_CHANNEL_3
+            default 6 if UM_CFG_NTC1_ADC_CHANNEL_6
+            default 7 if UM_CFG_NTC1_ADC_CHANNEL_7
+
+        choice UM_CFG_NTC2_ADC_CHANNEL
+            prompt "NTC Sensor 2 ADC Channel"
+            default UM_CFG_NTC2_ADC_CHANNEL_3
+            help
+                ADC channel for NTC sensor 2
+
+            config UM_CFG_NTC2_ADC_CHANNEL_0
+                bool "ADC1 Channel 0 (GPIO 36)"
+            config UM_CFG_NTC2_ADC_CHANNEL_3
+                bool "ADC1 Channel 3 (GPIO 39)"
+            config UM_CFG_NTC2_ADC_CHANNEL_6
+                bool "ADC1 Channel 6 (GPIO 34)"
+            config UM_CFG_NTC2_ADC_CHANNEL_7
+                bool "ADC1 Channel 7 (GPIO 35)"
+        endchoice
+
+        config UM_CFG_NTC2_ADC_CHANNEL
+            int
+            default 0 if UM_CFG_NTC2_ADC_CHANNEL_0
+            default 3 if UM_CFG_NTC2_ADC_CHANNEL_3
+            default 6 if UM_CFG_NTC2_ADC_CHANNEL_6
+            default 7 if UM_CFG_NTC2_ADC_CHANNEL_7
+    endmenu
+
+    # ============================================
+    # Analog Inputs Configuration
+    # ============================================
+    menu "Analog Inputs Configuration"
+        depends on UM_FEATURE_AI1 || UM_FEATURE_AI2
+
+        choice UM_CFG_AI1_ADC_CHANNEL
+            prompt "Analog Input 1 ADC Channel"
+            default UM_CFG_AI1_ADC_CHANNEL_6
+            help
+                ADC channel for analog input 1
+
+            config UM_CFG_AI1_ADC_CHANNEL_0
+                bool "ADC1 Channel 0 (GPIO 36)"
+            config UM_CFG_AI1_ADC_CHANNEL_3
+                bool "ADC1 Channel 3 (GPIO 39)"
+            config UM_CFG_AI1_ADC_CHANNEL_6
+                bool "ADC1 Channel 6 (GPIO 34)"
+            config UM_CFG_AI1_ADC_CHANNEL_7
+                bool "ADC1 Channel 7 (GPIO 35)"
+        endchoice
+
+        config UM_CFG_AI1_ADC_CHANNEL
+            int
+            default 0 if UM_CFG_AI1_ADC_CHANNEL_0
+            default 3 if UM_CFG_AI1_ADC_CHANNEL_3
+            default 6 if UM_CFG_AI1_ADC_CHANNEL_6
+            default 7 if UM_CFG_AI1_ADC_CHANNEL_7
+
+        choice UM_CFG_AI2_ADC_CHANNEL
+            prompt "Analog Input 2 ADC Channel"
+            default UM_CFG_AI2_ADC_CHANNEL_7
+            help
+                ADC channel for analog input 2
+
+            config UM_CFG_AI2_ADC_CHANNEL_0
+                bool "ADC1 Channel 0 (GPIO 36)"
+            config UM_CFG_AI2_ADC_CHANNEL_3
+                bool "ADC1 Channel 3 (GPIO 39)"
+            config UM_CFG_AI2_ADC_CHANNEL_6
+                bool "ADC1 Channel 6 (GPIO 34)"
+            config UM_CFG_AI2_ADC_CHANNEL_7
+                bool "ADC1 Channel 7 (GPIO 35)"
+        endchoice
+
+        config UM_CFG_AI2_ADC_CHANNEL
+            int
+            default 0 if UM_CFG_AI2_ADC_CHANNEL_0
+            default 3 if UM_CFG_AI2_ADC_CHANNEL_3
+            default 6 if UM_CFG_AI2_ADC_CHANNEL_6
+            default 7 if UM_CFG_AI2_ADC_CHANNEL_7
+    endmenu
+
+    # ============================================
+    # Open Collector Configuration
+    # ============================================
+    menu "Open Collector Configuration"
+        depends on UM_FEATURE_OPENCOLLECTORS
+
+        config UM_CFG_OC1_GPIO
+            int "Open Collector 1 GPIO"
+            range 0 39
+            default 14
+            help
+                GPIO for open collector output 1
+
+        config UM_CFG_OC2_GPIO
+            int "Open Collector 2 GPIO"
+            range 0 39
+            default 12
+            help
+                GPIO for open collector output 2
+    endmenu
+
+    # ============================================
+    # Buzzer Configuration
+    # ============================================
+    menu "Buzzer Configuration"
+        depends on UM_FEATURE_BUZZER
+
+        config UM_CFG_BUZZER_GPIO
+            int "Buzzer GPIO"
+            range 0 39
+            default 15
+            help
+                GPIO for buzzer
+    endmenu
+
+    # ============================================
+    # PCF8574 Inputs Configuration
+    # ============================================
+    menu "PCF8574 Inputs Configuration"
+        depends on UM_FEATURE_INPUTS
+
+        config UM_CFG_INP1_INDEX
+            int "Input 1 Index (0-7)"
+            range 0 7
+            default 1
+            help
+                PCF8574 pin index for input 1
+
+        config UM_CFG_INP2_INDEX
+            int "Input 2 Index (0-7)"
+            range 0 7
+            default 2
+            help
+                PCF8574 pin index for input 2
+
+        config UM_CFG_INP3_INDEX
+            int "Input 3 Index (0-7)"
+            range 0 7
+            default 3
+            help
+                PCF8574 pin index for input 3
+
+        config UM_CFG_INP4_INDEX
+            int "Input 4 Index (0-7)"
+            range 0 7
+            default 4
+            help
+                PCF8574 pin index for input 4
+
+        config UM_CFG_INP5_INDEX
+            int "Input 5 Index (0-7)"
+            range 0 7
+            default 5
+            help
+                PCF8574 pin index for input 5
+
+        config UM_CFG_INP6_INDEX
+            int "Input 6 Index (0-7)"
+            range 0 7
+            default 6
+            help
+                PCF8574 pin index for input 6
+    endmenu
+
+    # ============================================
+    # PCF8574 Outputs Configuration
+    # ============================================
+    menu "PCF8574 Outputs Configuration"
+        depends on UM_FEATURE_OUTPUTS
+
+        config UM_CFG_OUT1_INDEX
+            int "Output 1 Index (0-7)"
+            range 0 7
+            default 1
+            help
+                PCF8574 pin index for output 1
+
+        config UM_CFG_OUT2_INDEX
+            int "Output 2 Index (0-7)"
+            range 0 7
+            default 2
+            help
+                PCF8574 pin index for output 2
+
+        config UM_CFG_OUT3_INDEX
+            int "Output 3 Index (0-7)"
+            range 0 7
+            default 3
+            help
+                PCF8574 pin index for output 3
+
+        config UM_CFG_OUT4_INDEX
+            int "Output 4 Index (0-7)"
+            range 0 7
+            default 4
+            help
+                PCF8574 pin index for output 4
+
+        config UM_CFG_OUT5_INDEX
+            int "Output 5 Index (0-7)"
+            range 0 7
+            default 5
+            help
+                PCF8574 pin index for output 5
+
+        config UM_CFG_OUT6_INDEX
+            int "Output 6 Index (0-7)"
+            range 0 7
+            default 6
+            help
+                PCF8574 pin index for output 6
+
+        config UM_CFG_OUT7_INDEX
+            int "Output 7 Index (0-7)"
+            range 0 7
+            default 7
+            help
+                PCF8574 pin index for output 7
+
+        config UM_CFG_OUT8_INDEX
+            int "Output 8 Index (0-7)"
+            range 0 7
+            default 0
+            help
+                PCF8574 pin index for output 8
+    endmenu
+
+endmenu  # UMNI Configuration
