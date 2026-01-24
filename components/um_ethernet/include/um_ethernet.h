@@ -9,4 +9,4 @@
 #include "ethernet_init.h"
 #include "sdkconfig.h"
 
-void hello();
+void um_ethernet_init();

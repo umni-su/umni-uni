@@ -4,9 +4,6 @@ dependencies:
   um_events:
     path: ../um_events
     version: "*"
-  espressif/ethernet_init: 
-    require: private
-    version: ^1.2.0
-description: UMNI ethernet component
+description: UMNI buzzer component
 license: MIT
 version: 1.0.0

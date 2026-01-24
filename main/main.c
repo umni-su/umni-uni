@@ -2,12 +2,26 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "base_config.h"
+#include "um_events.h"
 
 #if UM_FEATURE_ENABLED(ETHERNET)
 #include "um_ethernet.h"
 #endif
 
+#if UM_FEATURE_ENABLED(OPENCOLLECTORS)
+#include "um_opencollectors.h"
+#endif
+
+#if UM_FEATURE_ENABLED(BUZZER)
+#include "um_buzzer.h"
+#endif
+
 static const char* TAG = "MAIN";
+
+// Обработчик события 1
+void handler1(void* arg, esp_event_base_t base, int32_t id, void* data) {
+    ESP_LOGI(TAG, "Handler1: Получено событие %ld", (long)id);
+}
 
 void app_main(void) {
     ESP_LOGI(TAG, "========================================");
@@ -20,6 +34,11 @@ void app_main(void) {
              CONFIG_UM_FEATURE_OPENTHERM ? "ВКЛ" : "ВЫКЛ", CONFIG_UM_CFG_OT_IN_GPIO);
     ESP_LOGI(TAG, "  1-Wire: %s (PIN: %d)", 
              CONFIG_UM_FEATURE_ONEWIRE ? "ВКЛ" : "ВЫКЛ", CONFIG_UM_CFG_ONEWIRE_GPIO);
+
+    // Шина событий
+    um_events_init();
+
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, handler1, NULL));
     
     // Пример использования в коде
     #if UM_FEATURE_ENABLED(OPENTHERM)
@@ -29,12 +48,20 @@ void app_main(void) {
     #if UM_FEATURE_ENABLED(ONEWIRE)
         ESP_LOGI(TAG, "1-Wire доступен на пине %d", CONFIG_UM_CFG_ONEWIRE_GPIO);
     #endif
+
+    #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
+        um_opencollectors_init();
+    #endif
+
+    #if UM_FEATURE_ENABLED(BUZZER)
+        um_buzzer_init();
+    #endif
     
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");
 
     #if UM_FEATURE_ENABLED(ETHERNET)
-    hello();
+    um_ethernet_init();
     #endif
     
     while (1) {

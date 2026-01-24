@@ -1,10 +1,18 @@
 #include "um_ethernet.h"
+#include "um_events.h"
 
 static const char *TAG = "ethernet_basic";
 
+static void eth_disconnect_event_handler(){
+    ESP_LOGW(TAG, "Ethernet disconnected");
+}
+
 /* Event handler for IP_EVENT_ETH_GOT_IP */
-static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
-                                 int32_t event_id, void *event_data)
+static void got_ip_event_handler(
+    void *arg, esp_event_base_t event_base,
+    int32_t event_id,
+    void *event_data
+)
 {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *) event_data;
     const esp_netif_ip_info_t *ip_info = &event->ip_info;
@@ -15,18 +23,25 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "MASK: " IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "GW: " IPSTR, IP2STR(&ip_info->gw));
     ESP_LOGI(TAG, "~~~~~~~~~~~");
+
+    um_event_publish(UMNI_EVENT_ETH_CONNECTED, NULL, sizeof(NULL),portMAX_DELAY);
 }
 
-void hello(){
+void um_ethernet_init(){
     uint8_t eth_port_cnt = 0;
     esp_eth_handle_t *eth_handles;
     char if_key_str[10];
     char if_desc_str[10];
 
+    esp_err_t res;
+
     // Initialize TCP/IP network interface aka the esp-netif (should be called only once in application)
     ESP_ERROR_CHECK(esp_netif_init());
     // Create default event loop that running in background
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    res = esp_event_loop_create_default();
+    if(res == ESP_ERR_INVALID_STATE){
+        ESP_LOGW(TAG, "Event bus already initialized");
+    }
 
     // Initialize Ethernet driver
     ESP_ERROR_CHECK(ethernet_init_all(&eth_handles, &eth_port_cnt));
@@ -63,6 +78,7 @@ void hello(){
 
     // Register user defined event handers
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &eth_disconnect_event_handler, NULL));
 
     // Start Ethernet driver state machine
     for (int i = 0; i < eth_port_cnt; i++) {
