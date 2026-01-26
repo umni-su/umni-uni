@@ -4,6 +4,8 @@
 #include "base_config.h"
 #include "um_events.h"
 
+#include "um_nvs.h"
+
 #if UM_FEATURE_ENABLED(ETHERNET)
 #include "um_ethernet.h"
 #endif
@@ -14,6 +16,14 @@
 
 #if UM_FEATURE_ENABLED(BUZZER)
 #include "um_buzzer.h"
+#endif
+
+#if UM_FEATURE_ENABLED(ALARM)
+#include "um_alarm.h"
+#endif
+
+#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
+#include "um_dio.h"
 #endif
 
 static const char* TAG = "MAIN";
@@ -37,6 +47,8 @@ void app_main(void) {
 
     // Шина событий
     um_events_init();
+    // NVS хранилище
+    um_nvs_init();
 
     ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, handler1, NULL));
     
@@ -55,6 +67,22 @@ void app_main(void) {
 
     #if UM_FEATURE_ENABLED(BUZZER)
         um_buzzer_init();
+    #endif
+
+    #if UM_FEATURE_ENABLED(ALARM)
+        um_alarm_init(UM_ALARM_EDGE_BOTH, false, false, 400);
+    #endif
+
+    #if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
+        um_dio_init();
+        for(int i=0;i<8;i++){
+           ESP_LOGI(TAG,"Switching %d", i);
+           um_dio_set_output(i,1);
+           vTaskDelay(pdMS_TO_TICKS(500));
+           um_dio_set_output(i,0);
+           vTaskDelay(pdMS_TO_TICKS(500));
+           
+        }
     #endif
     
     ESP_LOGI(TAG, "========================================");

@@ -494,6 +494,13 @@ menu "UMNI Configuration"
     menu "PCF8574 Inputs Configuration"
         depends on UM_FEATURE_INPUTS
 
+        config UM_CFG_PCF_INT
+            int "PCF8574 interrupt pin"
+            range 0 39
+            default 16
+            help
+                PCF8574 interrupt pin
+
         config UM_CFG_INP1_INDEX
             int "Input 1 Index (0-7)"
             range 0 7

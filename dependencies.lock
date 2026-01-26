@@ -51,7 +51,7 @@ dependencies:
       require: private
       version: '*'
     source:
-      registry_url: https://components.espressif.com/
+      registry_url: https://components.espressif.com
       type: service
     targets:
     - esp32
@@ -289,9 +289,14 @@ dependencies:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_events
       type: local
     version: 1.0.0
+  um_nvs:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_nvs
+      type: local
+    version: 1.0.0
 direct_dependencies:
 - esp-idf-lib/ds18x20
-- esp-idf-lib/i2cdev
 - esp-idf-lib/onewire
 - esp-idf-lib/pcf8574
 - espressif/ethernet_init
@@ -301,6 +306,7 @@ direct_dependencies:
 - sazanof/opentherm
 - sazanof/rf433_receiver
 - um_events
-manifest_hash: 621cdae952342d76a9464e010bc4d7ade5443ebcad8883b80763e081bd6fbd21
+- um_nvs
+manifest_hash: 66853d7196018168ff6c4076ea32d9f197b75be47e59deebf763e47e05446a94
 target: esp32
 version: 2.0.0

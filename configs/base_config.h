@@ -286,6 +286,10 @@
 #define CONFIG_UM_CFG_BUZZER_GPIO 15
 #endif
 
+#ifndef CONFIG_UM_CFG_PCF_INT
+#define CONFIG_UM_CFG_PCF_INT 16
+#endif
+
 // ============================================
 // Группа 19: Индексы входов
 // ============================================
@@ -347,6 +351,7 @@
 #ifndef CONFIG_UM_CFG_OUT8_INDEX
 #define CONFIG_UM_CFG_OUT8_INDEX 8
 #endif
+
 
 // ============================================
 // Удобные макросы для проверки включения фич

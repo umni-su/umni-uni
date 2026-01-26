@@ -1,0 +1,6 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+description: UMNI NVS component
+license: MIT
+version: 1.0.0
