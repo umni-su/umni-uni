@@ -26,6 +26,11 @@
 #include "um_dio.h"
 #endif
 
+#if UM_FEATURE_ENABLED(SDCARD)
+#include "um_sd.h"
+#endif
+
+
 static const char* TAG = "MAIN";
 
 // Обработчик события 1
@@ -40,10 +45,6 @@ void app_main(void) {
     
     ESP_LOGI(TAG, "Конфигурация:");
     ESP_LOGI(TAG, "  Ethernet: %s", CONFIG_UM_FEATURE_ETHERNET ? "ВКЛ" : "ВЫКЛ");
-    ESP_LOGI(TAG, "  OpenTherm: %s (IN: %d)", 
-             CONFIG_UM_FEATURE_OPENTHERM ? "ВКЛ" : "ВЫКЛ", CONFIG_UM_CFG_OT_IN_GPIO);
-    ESP_LOGI(TAG, "  1-Wire: %s (PIN: %d)", 
-             CONFIG_UM_FEATURE_ONEWIRE ? "ВКЛ" : "ВЫКЛ", CONFIG_UM_CFG_ONEWIRE_GPIO);
 
     // Шина событий
     um_events_init();
@@ -75,22 +76,25 @@ void app_main(void) {
 
     #if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
         um_dio_init();
-        for(int i=0;i<8;i++){
-           ESP_LOGI(TAG,"Switching %d", i);
-           um_dio_set_output(i,1);
-           vTaskDelay(pdMS_TO_TICKS(500));
-           um_dio_set_output(i,0);
-           vTaskDelay(pdMS_TO_TICKS(500));
-           
-        }
+        // for(int i=0;i<8;i++){
+        //    ESP_LOGI(TAG,"Switching %d", i);
+        //    um_dio_set_output(i,1);
+        //    vTaskDelay(pdMS_TO_TICKS(500));
+        //    um_dio_set_output(i,0);
+        //    vTaskDelay(pdMS_TO_TICKS(500));
+        // }
+    #endif
+
+    #if UM_FEATURE_ENABLED(ETHERNET)
+        um_ethernet_init();
+    #endif
+
+    #if UM_FEATURE_ENABLED(SDCARD)
+        um_sd_init();
     #endif
     
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");
-
-    #if UM_FEATURE_ENABLED(ETHERNET)
-    um_ethernet_init();
-    #endif
     
     while (1) {
         vTaskDelay(pdMS_TO_TICKS(10000));

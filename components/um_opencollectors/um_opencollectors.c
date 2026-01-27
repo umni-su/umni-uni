@@ -7,7 +7,6 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "esp_err.h"
-#include "sdkconfig.h"
 
 static const char* TAG = "um_oc";
 

@@ -7,6 +7,5 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "ethernet_init.h"
-#include "sdkconfig.h"
 
 void um_ethernet_init();

@@ -250,14 +250,42 @@ menu "UMNI Configuration"
     menu "SD Card Configuration"
         depends on UM_FEATURE_SDCARD
 
-        config SDSPI_CS_GPIO
+        config UM_CFG_SDCARD_SPI_HOST
+            int "SD Card SPI HOST"
+            range 0 2
+            default 1
+            help
+                SD Card SPI HOST
+
+        config UM_CFG_SDCARD_MOSI_GPIO
+            int "SD Card SPI MOSI"
+            range 0 39
+            default 1
+            help
+                SD Card SPI MOSI
+
+        config UM_CFG_SDCARD_MISO_GPIO
+            int "SD Card SPI MISO"
+            range 0 39
+            default 1
+            help
+                SD Card SPI MISO
+
+        config UM_CFG_SDCARD_SCLK_GPIO
+            int "SD Card SCLK"
+            range 0 39
+            default 1
+            help
+                SD Card SPI SCLK
+
+        config UM_CFG_SDCARD_CS_GPIO
             int "SD Card Chip Select GPIO"
             range 0 39
             default 32
             help
                 GPIO for SD card chip select
 
-        config SDSPI_DETECT_GPIO
+        config UM_CFG_SDCARD_DETECT_GPIO
             int "SD Card Detect GPIO"
             range 0 39
             default 33
