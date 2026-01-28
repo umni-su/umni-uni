@@ -3,7 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "base_config.h"
 #include "um_events.h"
-
+#include "um_storage.h"
 #include "um_nvs.h"
 
 #if UM_FEATURE_ENABLED(ETHERNET)
@@ -50,6 +50,8 @@ void app_main(void) {
     um_events_init();
     // NVS хранилище
     um_nvs_init();
+    // Spiffs
+    um_storage_init("/spiffs", NULL, 5, true);
 
     ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, handler1, NULL));
     

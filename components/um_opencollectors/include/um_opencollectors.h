@@ -29,6 +29,7 @@ esp_err_t um_opencollectors_set(um_oc_channel_t channel, um_oc_state_t state);
 esp_err_t um_opencollectors_get(um_oc_channel_t channel, um_oc_state_t* state);
 esp_err_t um_opencollectors_toggle(um_oc_channel_t channel);
 esp_err_t um_opencollectors_all_off(void);
+static esp_err_t um_opencollectors_save_to_nvs(void);
 
 #endif // CONFIG_UM_FEATURE_OC1 || CONFIG_UM_FEATURE_OC2
 

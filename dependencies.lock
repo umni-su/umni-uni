@@ -307,6 +307,6 @@ direct_dependencies:
 - sazanof/rf433_receiver
 - um_events
 - um_nvs
-manifest_hash: 768a05dfb2a092a050e48f4925a60db5bb732bc3e6f85dd9608662165a7b5a57
+manifest_hash: b4e48d4d9b5998ecd2e0168602c805e683a3b060c2d8e4f32a05d97542d15809
 target: esp32
 version: 2.0.0

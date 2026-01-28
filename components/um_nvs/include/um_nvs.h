@@ -60,6 +60,7 @@ extern "C" {
 #define UM_NVS_KEY_MQTT_PWD           "mqpwd"
 #define UM_NVS_KEY_WEBHOOKS           "whk"
 #define UM_NVS_KEY_WEBHOOKS_URL       "whkurl"
+#define UM_NVS_KEY_OPENCOLLECTORS     "ocols"
 
 /* Default Values */
 #define UM_NVS_DEFAULT_NTP                "0.ru.pool.ntp.org"
@@ -89,6 +90,10 @@ extern "C" {
 /* IP Type Definitions */
 #define UM_NVS_IP_TYPE_DHCP           1
 #define UM_NVS_IP_TYPE_STATIC         2
+
+// Маска для битового хранения
+#define OC1_STATE_MASK 0x01  // bit 0
+#define OC2_STATE_MASK 0x02  // bit 1
 
 /**
  * @brief Initialize NVS storage
