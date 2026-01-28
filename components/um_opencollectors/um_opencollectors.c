@@ -9,6 +9,8 @@
 #include "esp_err.h"
 #include "um_nvs.h"
 
+#if UM_FEATURE_ENABLED(OPENCOLLECTORS)
+
 static const char* TAG = "um_oc";
 
 // Channel context
@@ -119,7 +121,7 @@ esp_err_t um_opencollectors_init(void) {
     return ret;
 }
 
-static esp_err_t um_opencollectors_save_to_nvs(void) {
+esp_err_t um_opencollectors_save_to_nvs(void) {
     int8_t states = 0;
     
 #if UM_FEATURE_ENABLED(OC1)
@@ -238,3 +240,5 @@ esp_err_t um_opencollectors_all_off(void) {
     
     return (ret1 == ESP_OK && ret2 == ESP_OK) ? ESP_OK : ESP_FAIL;
 }
+
+#endif

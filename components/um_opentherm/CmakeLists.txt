@@ -1,0 +1,4 @@
+idf_component_register(
+    SRCS "um_opentherm.c"
+    INCLUDE_DIRS "include"
+)

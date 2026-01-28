@@ -18,5 +18,4 @@ dependencies:
   espressif/mdns: '*'
   esp-idf-lib/onewire: '*'
   esp-idf-lib/ds18x20: '*'
-  sazanof/opentherm: '*'
   sazanof/rf433_receiver: '*'
