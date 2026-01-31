@@ -30,6 +30,10 @@
 #include "um_sd.h"
 #endif
 
+#if UM_FEATURE_ENABLED(OPENTHERM)
+#include "um_opentherm.h"
+#endif
+
 
 static const char* TAG = "MAIN";
 
@@ -57,6 +61,7 @@ void app_main(void) {
     
     // Пример использования в коде
     #if UM_FEATURE_ENABLED(OPENTHERM)
+        um_ot_init();
         ESP_LOGI(TAG, "OpenTherm доступен на пине %d", CONFIG_UM_CFG_OT_IN_GPIO);
     #endif
 

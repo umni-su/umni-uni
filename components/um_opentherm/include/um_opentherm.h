@@ -49,7 +49,7 @@ typedef struct
 
 um_ot_data_t um_ot_get_data();
 
-void esp_ot_control_task_handler(void *pvParameter);
+void um_opentherm_control_task_handler(void *pvParameter);
 
 void um_ot_init();
 

@@ -222,7 +222,7 @@ int8_t um_nvs_read_i8(const char* key)
     esp_err_t err = nvs_get_i8(um_nvs_handle, key, &value);
     
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
+        //ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
         return -1;
     }
     
@@ -240,7 +240,7 @@ int16_t um_nvs_read_i16(const char* key)
     esp_err_t err = nvs_get_i16(um_nvs_handle, key, &value);
     
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
+        //ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
         return -1;
     }
     
@@ -258,7 +258,7 @@ int64_t um_nvs_read_i64(const char* key)
     esp_err_t err = nvs_get_i64(um_nvs_handle, key, &value);
     
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
+        //ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
         return -1;
     }
     
@@ -276,7 +276,7 @@ char* um_nvs_read_str(const char* key)
     esp_err_t err = nvs_get_str(um_nvs_handle, key, NULL, &required_size);
     
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
+        //ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
         return NULL;
     }
     
@@ -309,7 +309,7 @@ esp_err_t um_nvs_read_u16(const char* key, uint16_t* out)
     
     esp_err_t err = nvs_get_u16(um_nvs_handle, key, out);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
+        //ESP_LOGW(TAG, "Key '%s' not found: %s", key, esp_err_to_name(err));
         return ESP_FAIL;
     }
     
