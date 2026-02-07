@@ -136,8 +136,12 @@ static esp_err_t init_output_pcf8574(void)
     }
     
     /* Только ПОСЛЕ успешной инициализации загружаем состояние */
-    output_data = um_nvs_get_outputs_data();
-    ESP_LOGI(TAG, "Loaded output states: 0x%02X", output_data);
+    if(um_nvs_get_outputs_data(&output_data) == ESP_OK){
+        ESP_LOGI(TAG, "Loaded output states: 0x%02X", output_data);
+    } else {
+        output_data = 0xFF;
+    }
+    
     
     /* Записываем начальное состояние */
     res = pcf8574_port_write(&pcf8574_output_dev, output_data);
@@ -421,7 +425,7 @@ esp_err_t um_dio_set_output(um_do_port_index_t output_idx, um_do_level_t level)
     esp_err_t res = pcf8574_port_write(&pcf8574_output_dev, output_data);
     if (res == ESP_OK) {
         /* Save to NVS */
-        um_nvs_set_outputs_data(output_data);
+        res = um_nvs_set_outputs_data(output_data);
     }
     
     return res;
@@ -458,7 +462,7 @@ esp_err_t um_dio_set_all_outputs(uint8_t states)
     esp_err_t res = pcf8574_port_write(&pcf8574_output_dev, output_data);
     if (res == ESP_OK) {
         /* Save to NVS */
-        um_nvs_set_outputs_data(output_data);
+        res = um_nvs_set_outputs_data(output_data);
     }
     
     return res;

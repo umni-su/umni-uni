@@ -1,0 +1,13 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+  um_events:
+    path: ../um_events
+    version: "*"
+  esp-idf-lib/onewire: 
+    version: "*"
+  esp-idf-lib/ds18x20: 
+    version: "*"
+description: UMNI onewire component
+license: MIT
+version: 1.0.0

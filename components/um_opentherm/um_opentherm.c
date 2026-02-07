@@ -14,8 +14,8 @@
 
 #define ESP_INTR_FLAG_DEFAULT 0
 
-static int targetDHWTemp = 59;
-static int targetCHTemp = 60;
+static uint8_t targetDHWTemp = 59;
+static uint8_t targetCHTemp = 60;
 static bool otEnabled = true; // OT global status
 static bool needReset = false;
 
@@ -65,18 +65,12 @@ void um_opentherm_event_handler(void *handler_arg, esp_event_base_t base, int32_
 void um_opentherm_control_task_handler(void *pvParameter)
 {
     // Устанавливаем начальные целевые значения из NVS
-    otEnabled = um_nvs_read_i8(UM_NVS_KEY_OT_EN) == 1; // Get OT glob status from NVS
-    targetDHWTemp = um_nvs_read_i8(UM_NVS_KEY_OT_DHW_SETPOINT);
-    if(targetDHWTemp == -1){
-        targetDHWTemp = 50;
-    }
-    targetCHTemp = um_nvs_read_i8(UM_NVS_KEY_OT_CH_SETPOINT);
-    if(targetCHTemp == -1){
-        targetCHTemp = 60;
-    }
-    enableCentralHeating = um_nvs_read_i8(UM_NVS_KEY_OT_CH) == 1;
-    enableHotWater = um_nvs_read_i8(UM_NVS_KEY_OT_DHW) == 1;
-    enableOutsideTemperatureCompensation = um_nvs_read_i8(UM_NVS_KEY_OT_OTC) == 1;
+    um_nvs_get_ot_enabled(&otEnabled);
+    um_nvs_get_ot_dhw_setpoint(&targetDHWTemp);
+    um_nvs_get_ot_ch_setpoint(&targetCHTemp);
+    um_nvs_get_ot_ch_enabled(&enableCentralHeating);
+    um_nvs_get_ot_dhw_enabled(&enableHotWater);
+    um_nvs_get_ot_outdoor_temp_comp(&enableOutsideTemperatureCompensation);
 
     // Переменные для периодической проверки
     static bool last_enabled_state = false;
@@ -109,20 +103,18 @@ void um_opentherm_control_task_handler(void *pvParameter)
             TickType_t current_time = xTaskGetTickCount();
             if ((current_time - last_nvs_check_time) > pdMS_TO_TICKS(5000))
             {
-                otEnabled = um_nvs_read_i8(UM_NVS_KEY_OT_EN) == 1;
+                um_nvs_get_ot_enabled(&otEnabled);
                 last_nvs_check_time = current_time;
                 
                 if (otEnabled)
                 {
                     ESP_LOGI(TAG, "OpenTherm enabled from NVS, initializing...");
                     // Обновляем параметры при включении
-                    targetDHWTemp = um_nvs_read_i8(UM_NVS_KEY_OT_DHW_SETPOINT);
-                    if(targetDHWTemp == -1) targetDHWTemp = 50;
-                    targetCHTemp = um_nvs_read_i8(UM_NVS_KEY_OT_CH_SETPOINT);
-                    if(targetCHTemp == -1) targetCHTemp = 60;
-                    enableCentralHeating = um_nvs_read_i8(UM_NVS_KEY_OT_CH) == 1;
-                    enableHotWater = um_nvs_read_i8(UM_NVS_KEY_OT_DHW) == 1;
-                    enableOutsideTemperatureCompensation = um_nvs_read_i8(UM_NVS_KEY_OT_OTC) == 1;
+                    um_nvs_get_ot_dhw_setpoint(&targetDHWTemp);
+                    um_nvs_get_ot_ch_setpoint(&targetCHTemp);
+                    um_nvs_get_ot_ch_enabled(&enableCentralHeating);
+                    um_nvs_get_ot_dhw_enabled(&enableHotWater);
+                    um_nvs_get_ot_outdoor_temp_comp(&enableOutsideTemperatureCompensation);
                 }
             }
             
@@ -142,7 +134,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
         if (res != ESP_OK)
         {
             ot_data.adapter_success = false;
-            ESP_LOGW(TAG, "Opentherm um_ot_set_boiler_status return ESP_FAIL, retry...");
+            ESP_LOGD(TAG, "Opentherm um_ot_set_boiler_status return ESP_FAIL, retry...");
             res = um_ot_set_boiler_status(
                 enableCentralHeating,
                 enableHotWater, enableCooling,
@@ -354,7 +346,8 @@ void um_opentherm_control_task_handler(void *pvParameter)
         TickType_t current_time = xTaskGetTickCount();
         if ((current_time - last_nvs_check_time) > pdMS_TO_TICKS(5000))
         {
-            bool new_ot_enabled = um_nvs_read_i8(UM_NVS_KEY_OT_EN) == 1;
+            bool new_ot_enabled = false;
+            um_nvs_get_ot_enabled(&new_ot_enabled);
             if (new_ot_enabled != otEnabled)
             {
                 otEnabled = new_ot_enabled;
@@ -388,7 +381,7 @@ esp_err_t um_ot_set_boiler_status(
     enableCentralHeating2 = enable_central_heating2;
 
     ot_data.otch = enableCentralHeating;
-    ESP_LOGW(TAG, "[um_ot_set_boiler_status] enableCentralHeating: %d  chtemp: %d dhwtemp:%d", enableCentralHeating, targetCHTemp, targetDHWTemp);
+    
     esp_err_t res = ESP_OK;
     status = esp_ot_set_boiler_status(
         enableCentralHeating,
@@ -404,6 +397,7 @@ esp_err_t um_ot_set_boiler_status(
         ot_data.hot_water_active = esp_ot_is_hot_water_active(status);
         ot_data.flame_on = esp_ot_is_flame_on(status);
         ot_data.is_fault = esp_ot_is_fault(status);
+        ESP_LOGW(TAG, "[um_ot_set_boiler_status] enableCentralHeating: %d  chtemp: %d dhwtemp:%d", enableCentralHeating, targetCHTemp, targetDHWTemp);
     }
     else if (ot_response_status == OT_STATUS_TIMEOUT)
     {
@@ -501,17 +495,20 @@ void um_ot_init()
     vTaskDelay(500 / portTICK_PERIOD_MS);
 
     // Get or set DHW sp;
-    targetDHWTemp = um_nvs_read_i8(UM_NVS_KEY_OT_DHW_SETPOINT);
-    // Get or set TB sp;
-    targetCHTemp = um_nvs_read_i8(UM_NVS_KEY_OT_CH_SETPOINT);
-
-    enableHotWater = um_nvs_read_i8(UM_NVS_KEY_OT_DHW) == 1;
+    um_nvs_get_ot_dhw_enabled(&enableHotWater);
+    um_nvs_get_ot_dhw_setpoint(&targetDHWTemp);
+    um_nvs_get_ot_ch_setpoint(&targetCHTemp);
+    uint8_t mod = 0;
+    um_nvs_get_ot_modulation(&mod);
+    uint8_t hcr = 0;
+    um_nvs_get_ot_heating_curve_ratio(&hcr);
 
     ot_data.otdhwsp = targetDHWTemp;
     ot_data.ottbsp = targetCHTemp;
     ot_data.otch = enableCentralHeating;
-    ot_data.mod = um_nvs_read_i8(UM_NVS_KEY_OT_MOD);
-    ot_data.othcr = um_nvs_read_i8(UM_NVS_KEY_OT_HCR);
+    
+    ot_data.mod = mod;
+    ot_data.othcr = hcr;
 
     ot_data.hwa = enableHotWater;
 

@@ -1,0 +1,9 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+  um_events:
+    path: ../um_events
+    version: "*"
+description: UMNI webserver component
+license: MIT
+version: 1.0.0

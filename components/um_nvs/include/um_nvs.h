@@ -96,183 +96,296 @@ extern "C" {
 #define OC2_STATE_MASK 0x02  // bit 1
 
 /**
- * @brief Initialize NVS storage
+ * @brief Initialize NVS flash storage
  * 
- * @return esp_err_t ESP_OK on success, ESP_FAIL on error
+ * This function initializes the NVS flash storage. It must be called
+ * before any other NVS operations.
+ * 
+ * @return ESP_OK on success, error code on failure
  */
 esp_err_t um_nvs_init(void);
 
 /**
- * @brief Open NVS namespace for operations
+ * @brief Open a namespace in NVS
  * 
- * @param namespace Namespace name
- * @return true Success
- * @return false Failure
+ * Opens a specific namespace for read/write operations. Only one namespace
+ * can be open at a time.
+ * 
+ * @param namespace Name of the namespace to open
+ * @return ESP_OK on success, error code on failure
+ * @note If a namespace is already open, it will be closed first
  */
-bool um_nvs_open(const char* namespace);
+esp_err_t um_nvs_open(const char* namespace);
 
 /**
- * @brief Close NVS namespace
+ * @brief Close the current namespace
+ * 
+ * Closes the currently open namespace and frees associated resources.
  */
 void um_nvs_close(void);
 
 /**
+ * @brief Check if namespace is currently open
+ * 
+ * @return true if a namespace is open, false otherwise
+ */
+bool um_nvs_is_open(void);
+
+/**
  * @brief Check if system is installed
  * 
- * @return true System is installed
- * @return false System is not installed
+ * System is considered installed if all required credentials are set.
+ * 
+ * @return true if system is installed, false otherwise
  */
 bool um_nvs_is_installed(void);
 
 /**
  * @brief Erase all data in current namespace
  * 
- * @return true Success
- * @return false Failure
+ * @warning This operation is irreversible!
+ * @return ESP_OK on success, error code on failure
  */
-bool um_nvs_erase(void);
+esp_err_t um_nvs_erase(void);
 
 /**
- * @brief Erase specific key from NVS
+ * @brief Delete a specific key from NVS
  * 
- * @param key Key to erase
- * @return true Success
- * @return false Failure
+ * @param key Key to delete
+ * @return ESP_OK on success, error code on failure
  */
-bool um_nvs_delete_key(const char* key);
+esp_err_t um_nvs_delete_key(const char* key);
 
 /**
  * @brief Initialize NVS with default values
  * 
- * @return esp_err_t ESP_OK on success
+ * Sets all configuration parameters to their default values.
+ * 
+ * @return ESP_OK on success, error code on failure
  */
 esp_err_t um_nvs_initialize_with_defaults(void);
 
 /* Generic read functions */
-int8_t um_nvs_read_i8(const char* key);
-int16_t um_nvs_read_i16(const char* key);
-int64_t um_nvs_read_i64(const char* key);
-char* um_nvs_read_str(const char* key);
-esp_err_t um_nvs_read_u16(const char* key, uint16_t* out);
+
+/**
+ * @brief Read 8-bit signed integer from NVS
+ * 
+ * @param key Key to read
+ * @param[out] out_value Pointer to store the value
+ * @return ESP_OK on success, error code on failure
+ */
+esp_err_t um_nvs_read_i8(const char* key, int8_t* out_value);
+
+/**
+ * @brief Read 16-bit signed integer from NVS
+ * 
+ * @param key Key to read
+ * @param[out] out_value Pointer to store the value
+ * @return ESP_OK on success, error code on failure
+ */
+esp_err_t um_nvs_read_i16(const char* key, int16_t* out_value);
+
+/**
+ * @brief Read 64-bit signed integer from NVS
+ * 
+ * @param key Key to read
+ * @param[out] out_value Pointer to store the value
+ * @return ESP_OK on success, error code on failure
+ */
+esp_err_t um_nvs_read_i64(const char* key, int64_t* out_value);
+
+/**
+ * @brief Read 16-bit unsigned integer from NVS
+ * 
+ * @param key Key to read
+ * @param[out] out Pointer to store the value
+ * @return ESP_OK on success, error code on failure
+ */
+esp_err_t um_nvs_read_u16(const char* key, uint16_t* out_value);
+
+/**
+ * @brief Read string from NVS
+ * 
+ * @param key Key to read
+ * @param[out] out_value Pointer to store the allocated string
+ * @return ESP_OK on success, error code on failure
+ * @note Caller must free the returned string using free()
+ * @note *out_value will be set to NULL on error
+ */
+esp_err_t um_nvs_read_str(const char* key, char** out_value);
+
+/**
+ * @brief Read string from NVS with maximum length limit
+ * 
+ * @param key Key to read
+ * @param[out] out_value Pointer to store the allocated string
+ * @param max_len Maximum allowed string length (including null terminator)
+ * @return ESP_OK on success, error code on failure
+ * @note Caller must free the returned string using free()
+ * @note *out_value will be set to NULL on error
+ */
+esp_err_t um_nvs_read_str_len(const char* key, char** out_value, size_t max_len);
 
 /* Generic write functions */
+
+/**
+ * @brief Write 8-bit signed integer to NVS
+ * 
+ * @param key Key to write
+ * @param value Value to write
+ * @return ESP_OK on success, error code on failure
+ */
 esp_err_t um_nvs_write_i8(const char* key, int8_t value);
+
+/**
+ * @brief Write 16-bit signed integer to NVS
+ * 
+ * @param key Key to write
+ * @param value Value to write
+ * @return ESP_OK on success, error code on failure
+ */
 esp_err_t um_nvs_write_i16(const char* key, int16_t value);
+
+/**
+ * @brief Write 16-bit unsigned integer to NVS
+ * 
+ * @param key Key to write
+ * @param value Value to write
+ * @return ESP_OK on success, error code on failure
+ */
 esp_err_t um_nvs_write_u16(const char* key, uint16_t value);
-bool um_nvs_write_str(const char* key, const char* value);
+
+/**
+ * @brief Write 64-bit signed integer to NVS
+ * 
+ * @param key Key to write
+ * @param value Value to write
+ * @return ESP_OK on success, error code on failure
+ */
 esp_err_t um_nvs_write_i64(const char* key, int64_t value);
+
+/**
+ * @brief Write string to NVS
+ * 
+ * @param key Key to write
+ * @param value String to write (NULL to delete the key)
+ * @return ESP_OK on success, error code on failure
+ */
+esp_err_t um_nvs_write_str(const char* key, const char* value);
+
+/* Legacy getters (for backward compatibility - return default values on error) */
 
 /* System Getters */
 bool um_nvs_get_installed(void);
-char* um_nvs_get_hostname(void);
-char* um_nvs_get_macname(void);
-char* um_nvs_get_username(void);
-char* um_nvs_get_password(void);
-char* um_nvs_get_ntp(void);
-uint8_t um_nvs_get_updates_channel(void);
-char* um_nvs_get_timezone(void);
-char* um_nvs_get_poweron_at(void);
-char* um_nvs_get_reset_at(void);
+esp_err_t um_nvs_get_hostname(char** hostname);
+esp_err_t um_nvs_get_macname(char** macname);
+esp_err_t um_nvs_get_username(char** username);
+esp_err_t um_nvs_get_password(char** password);
+esp_err_t um_nvs_get_ntp(char** ntp);
+esp_err_t um_nvs_get_updates_channel(uint8_t* channel);
+esp_err_t um_nvs_get_timezone(char** timezone);
+esp_err_t um_nvs_get_poweron_at(char** poweron_at);
+esp_err_t um_nvs_get_reset_at(char** reset_at);
 
 /* System Setters */
-bool um_nvs_set_installed(bool installed);
-bool um_nvs_set_hostname(const char* hostname);
-bool um_nvs_set_macname(const char* macname);
-bool um_nvs_set_username(const char* username);
-bool um_nvs_set_password(const char* password);
-bool um_nvs_set_ntp(const char* ntp);
-bool um_nvs_set_updates_channel(uint8_t channel);
-bool um_nvs_set_timezone(const char* timezone);
-bool um_nvs_set_poweron_at(const char* poweron_at);
-bool um_nvs_set_reset_at(const char* reset_at);
+esp_err_t um_nvs_set_installed(bool installed);
+esp_err_t um_nvs_set_hostname(const char* hostname);
+esp_err_t um_nvs_set_macname(const char* macname);
+esp_err_t um_nvs_set_username(const char* username);
+esp_err_t um_nvs_set_password(const char* password);
+esp_err_t um_nvs_set_ntp(const char* ntp);
+esp_err_t um_nvs_set_updates_channel(uint8_t channel);
+esp_err_t um_nvs_set_timezone(const char* timezone);
+esp_err_t um_nvs_set_poweron_at(const char* poweron_at);
+esp_err_t um_nvs_set_reset_at(const char* reset_at);
 
 /* Network Getters */
-uint8_t um_nvs_get_network_mode(void);
-char* um_nvs_get_wifi_sta_mac(void);
-char* um_nvs_get_wifi_sta_ssid(void);
-char* um_nvs_get_wifi_sta_password(void);
-char* um_nvs_get_wifi_mac(void);
-uint8_t um_nvs_get_wifi_type(void);
-char* um_nvs_get_wifi_ip(void);
-char* um_nvs_get_wifi_netmask(void);
-char* um_nvs_get_wifi_gateway(void);
-char* um_nvs_get_wifi_dns(void);
-char* um_nvs_get_eth_mac(void);
-uint8_t um_nvs_get_eth_type(void);
-char* um_nvs_get_eth_ip(void);
-char* um_nvs_get_eth_netmask(void);
-char* um_nvs_get_eth_gateway(void);
-char* um_nvs_get_eth_dns(void);
+esp_err_t um_nvs_get_network_mode(uint8_t* mode);
+esp_err_t um_nvs_get_wifi_sta_mac(char** mac);
+esp_err_t um_nvs_get_wifi_sta_ssid(char** ssid);
+esp_err_t um_nvs_get_wifi_sta_password(char** password);
+esp_err_t um_nvs_get_wifi_mac(char** mac);
+esp_err_t um_nvs_get_wifi_type(uint8_t* type);
+esp_err_t um_nvs_get_wifi_ip(char** ip);
+esp_err_t um_nvs_get_wifi_netmask(char** netmask);
+esp_err_t um_nvs_get_wifi_gateway(char** gateway);
+esp_err_t um_nvs_get_wifi_dns(char** dns);
+esp_err_t um_nvs_get_eth_mac(char** mac);
+esp_err_t um_nvs_get_eth_type(uint8_t* type);
+esp_err_t um_nvs_get_eth_ip(char** ip);
+esp_err_t um_nvs_get_eth_netmask(char** netmask);
+esp_err_t um_nvs_get_eth_gateway(char** gateway);
+esp_err_t um_nvs_get_eth_dns(char** dns);
 
 /* Network Setters */
-bool um_nvs_set_network_mode(uint8_t mode);
-bool um_nvs_set_wifi_sta_mac(const char* mac);
-bool um_nvs_set_wifi_sta_ssid(const char* ssid);
-bool um_nvs_set_wifi_sta_password(const char* password);
-bool um_nvs_set_wifi_mac(const char* mac);
-bool um_nvs_set_wifi_type(uint8_t type);
-bool um_nvs_set_wifi_ip(const char* ip);
-bool um_nvs_set_wifi_netmask(const char* netmask);
-bool um_nvs_set_wifi_gateway(const char* gateway);
-bool um_nvs_set_wifi_dns(const char* dns);
-bool um_nvs_set_eth_mac(const char* mac);
-bool um_nvs_set_eth_type(uint8_t type);
-bool um_nvs_set_eth_ip(const char* ip);
-bool um_nvs_set_eth_netmask(const char* netmask);
-bool um_nvs_set_eth_gateway(const char* gateway);
-bool um_nvs_set_eth_dns(const char* dns);
+esp_err_t um_nvs_set_network_mode(uint8_t mode);
+esp_err_t um_nvs_set_wifi_sta_mac(const char* mac);
+esp_err_t um_nvs_set_wifi_sta_ssid(const char* ssid);
+esp_err_t um_nvs_set_wifi_sta_password(const char* password);
+esp_err_t um_nvs_set_wifi_mac(const char* mac);
+esp_err_t um_nvs_set_wifi_type(uint8_t type);
+esp_err_t um_nvs_set_wifi_ip(const char* ip);
+esp_err_t um_nvs_set_wifi_netmask(const char* netmask);
+esp_err_t um_nvs_set_wifi_gateway(const char* gateway);
+esp_err_t um_nvs_set_wifi_dns(const char* dns);
+esp_err_t um_nvs_set_eth_mac(const char* mac);
+esp_err_t um_nvs_set_eth_type(uint8_t type);
+esp_err_t um_nvs_set_eth_ip(const char* ip);
+esp_err_t um_nvs_set_eth_netmask(const char* netmask);
+esp_err_t um_nvs_set_eth_gateway(const char* gateway);
+esp_err_t um_nvs_set_eth_dns(const char* dns);
 
 /* OpenTherm Getters */
-bool um_nvs_get_ot_enabled(void);
-bool um_nvs_get_ot_ch_enabled(void);
-bool um_nvs_get_ot_ch2_enabled(void);
-uint8_t um_nvs_get_ot_ch_setpoint(void);
-uint8_t um_nvs_get_ot_dhw_setpoint(void);
-bool um_nvs_get_ot_dhw_enabled(void);
-bool um_nvs_get_ot_cool_enabled(void);
-uint8_t um_nvs_get_ot_modulation(void);
-bool um_nvs_get_ot_outdoor_temp_comp(void);
-uint8_t um_nvs_get_ot_heating_curve_ratio(void);
+esp_err_t um_nvs_get_ot_enabled(bool* enabled);
+esp_err_t um_nvs_get_ot_ch_enabled(bool* enabled);
+esp_err_t um_nvs_get_ot_ch2_enabled(bool* enabled);
+esp_err_t um_nvs_get_ot_ch_setpoint(uint8_t* setpoint);
+esp_err_t um_nvs_get_ot_dhw_setpoint(uint8_t* setpoint);
+esp_err_t um_nvs_get_ot_dhw_enabled(bool* enabled);
+esp_err_t um_nvs_get_ot_cool_enabled(bool* enabled);
+esp_err_t um_nvs_get_ot_modulation(uint8_t* modulation);
+esp_err_t um_nvs_get_ot_outdoor_temp_comp(bool* enabled);
+esp_err_t um_nvs_get_ot_heating_curve_ratio(uint8_t* ratio);
 
 /* OpenTherm Setters */
-bool um_nvs_set_ot_enabled(bool enabled);
-bool um_nvs_set_ot_ch_enabled(bool enabled);
-bool um_nvs_set_ot_ch2_enabled(bool enabled);
-bool um_nvs_set_ot_ch_setpoint(uint8_t setpoint);
-bool um_nvs_set_ot_dhw_setpoint(uint8_t setpoint);
-bool um_nvs_set_ot_dhw_enabled(bool enabled);
-bool um_nvs_set_ot_cool_enabled(bool enabled);
-bool um_nvs_set_ot_modulation(uint8_t modulation);
-bool um_nvs_set_ot_outdoor_temp_comp(bool enabled);
-bool um_nvs_set_ot_heating_curve_ratio(uint8_t ratio);
+esp_err_t um_nvs_set_ot_enabled(bool enabled);
+esp_err_t um_nvs_set_ot_ch_enabled(bool enabled);
+esp_err_t um_nvs_set_ot_ch2_enabled(bool enabled);
+esp_err_t um_nvs_set_ot_ch_setpoint(uint8_t setpoint);
+esp_err_t um_nvs_set_ot_dhw_setpoint(uint8_t setpoint);
+esp_err_t um_nvs_set_ot_dhw_enabled(bool enabled);
+esp_err_t um_nvs_set_ot_cool_enabled(bool enabled);
+esp_err_t um_nvs_set_ot_modulation(uint8_t modulation);
+esp_err_t um_nvs_set_ot_outdoor_temp_comp(bool enabled);
+esp_err_t um_nvs_set_ot_heating_curve_ratio(uint8_t ratio);
 
 /* Outputs Getters */
-uint8_t um_nvs_get_outputs_data(void);
+esp_err_t um_nvs_get_outputs_data(uint8_t* data);
 
 /* Outputs Setters */
-bool um_nvs_set_outputs_data(uint8_t data);
+esp_err_t um_nvs_set_outputs_data(uint8_t data);
 
 /* MQTT Getters */
-bool um_nvs_get_mqtt_enabled(void);
-char* um_nvs_get_mqtt_host(void);
-uint16_t um_nvs_get_mqtt_port(void);
-char* um_nvs_get_mqtt_username(void);
-char* um_nvs_get_mqtt_password(void);
+esp_err_t um_nvs_get_mqtt_enabled(bool* enabled);
+esp_err_t um_nvs_get_mqtt_host(char** host);
+esp_err_t um_nvs_get_mqtt_port(uint16_t* port);
+esp_err_t um_nvs_get_mqtt_username(char** username);
+esp_err_t um_nvs_get_mqtt_password(char** password);
 
 /* MQTT Setters */
-bool um_nvs_set_mqtt_enabled(bool enabled);
-bool um_nvs_set_mqtt_host(const char* host);
-bool um_nvs_set_mqtt_port(uint16_t port);
-bool um_nvs_set_mqtt_username(const char* username);
-bool um_nvs_set_mqtt_password(const char* password);
+esp_err_t um_nvs_set_mqtt_enabled(bool enabled);
+esp_err_t um_nvs_set_mqtt_host(const char* host);
+esp_err_t um_nvs_set_mqtt_port(uint16_t port);
+esp_err_t um_nvs_set_mqtt_username(const char* username);
+esp_err_t um_nvs_set_mqtt_password(const char* password);
 
 /* Webhooks Getters */
-bool um_nvs_get_webhooks_enabled(void);
-char* um_nvs_get_webhooks_url(void);
+esp_err_t um_nvs_get_webhooks_enabled(bool* enabled);
+esp_err_t um_nvs_get_webhooks_url(char** url);
 
 /* Webhooks Setters */
-bool um_nvs_set_webhooks_enabled(bool enabled);
-bool um_nvs_set_webhooks_url(const char* url);
+esp_err_t um_nvs_set_webhooks_enabled(bool enabled);
+esp_err_t um_nvs_set_webhooks_url(const char* url);
 
 #ifdef __cplusplus
 }

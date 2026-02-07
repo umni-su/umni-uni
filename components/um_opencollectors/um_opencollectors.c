@@ -29,11 +29,11 @@ static inline int state_to_level(um_oc_state_t state) {
 
 esp_err_t um_opencollectors_init(void) {
     esp_err_t ret = ESP_OK;
-    int saved_states = -1;
+    int8_t saved_states = -1;
     
     // 1. Загружаем состояния из NVS (один раз для всех каналов)
 #if UM_FEATURE_ENABLED(OC1) || UM_FEATURE_ENABLED(OC2)
-    saved_states = um_nvs_read_i8(UM_NVS_KEY_OPENCOLLECTORS);
+     ret = um_nvs_read_i8(UM_NVS_KEY_OPENCOLLECTORS, &saved_states);
 #endif
     
     // 2. Инициализируем OC1
