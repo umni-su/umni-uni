@@ -14,7 +14,7 @@
 #include "esp_spiffs.h"
 #include "um_storage.h"
 
-static const char *TAG = "storage";
+static const char *TAG_STORAGE = "storage";
 
 static char s_base_path[32] = "/spiffs"; // same as in partitions.csv
 
@@ -24,7 +24,7 @@ esp_err_t um_storage_init(
     int max_files, 
     bool format_if_mount_failed)
 {
-    ESP_LOGI(TAG, "Initializing SPIFFS");
+    ESP_LOGI(TAG_STORAGE, "Initializing SPIFFS");
     
     if (base_path != NULL) {
         strncpy(s_base_path, base_path, sizeof(s_base_path) - 1);
@@ -42,11 +42,11 @@ esp_err_t um_storage_init(
     
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
-            ESP_LOGE(TAG, "Failed to mount or format filesystem");
+            ESP_LOGE(TAG_STORAGE, "Failed to mount or format filesystem");
         } else if (ret == ESP_ERR_NOT_FOUND) {
-            ESP_LOGE(TAG, "Failed to find SPIFFS partition at %s, label %s", s_base_path,partition_label);
+            ESP_LOGE(TAG_STORAGE, "Failed to find SPIFFS partition at %s, label %s", s_base_path,partition_label);
         } else {
-            ESP_LOGE(TAG, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
+            ESP_LOGE(TAG_STORAGE, "Failed to initialize SPIFFS (%s)", esp_err_to_name(ret));
         }
         return ret;
     }
@@ -55,9 +55,9 @@ esp_err_t um_storage_init(
     size_t total = 0, used = 0;
     ret = esp_spiffs_info(conf.partition_label, &total, &used);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get SPIFFS partition information");
+        ESP_LOGE(TAG_STORAGE, "Failed to get SPIFFS partition information");
     } else {
-        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+        ESP_LOGI(TAG_STORAGE, "Partition size: total: %d, used: %d", total, used);
     }
     
     return ESP_OK;
@@ -65,10 +65,10 @@ esp_err_t um_storage_init(
 
 esp_err_t um_storage_deinit(const char* partition_label)
 {
-    ESP_LOGI(TAG, "Unmounting SPIFFS");
+    ESP_LOGI(TAG_STORAGE, "Unmounting SPIFFS");
     esp_err_t ret = esp_vfs_spiffs_unregister(partition_label);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to unmount SPIFFS (%s)", esp_err_to_name(ret));
+        ESP_LOGE(TAG_STORAGE, "Failed to unmount SPIFFS (%s)", esp_err_to_name(ret));
     }
     return ret;
 }
@@ -82,13 +82,13 @@ bool um_storage_file_exists(const char* file_path)
 esp_err_t um_storage_read_file(const char* file_path, char* buffer, size_t buffer_size)
 {
     if (buffer == NULL || buffer_size == 0) {
-        ESP_LOGE(TAG, "Invalid buffer");
+        ESP_LOGE(TAG_STORAGE, "Invalid buffer");
         return ESP_FAIL;
     }
     
     FILE* f = fopen(file_path, "r");
     if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for reading: %s", file_path);
+        ESP_LOGE(TAG_STORAGE, "Failed to open file for reading: %s", file_path);
         return ESP_FAIL;
     }
     
@@ -97,58 +97,58 @@ esp_err_t um_storage_read_file(const char* file_path, char* buffer, size_t buffe
     
     fclose(f);
     
-    ESP_LOGD(TAG, "Read %d bytes from %s", bytes_read, file_path);
+    ESP_LOGD(TAG_STORAGE, "Read %d bytes from %s", bytes_read, file_path);
     return ESP_OK;
 }
 
 esp_err_t um_storage_write_file(const char* file_path, const char* data)
 {
     if (data == NULL) {
-        ESP_LOGE(TAG, "Invalid data");
+        ESP_LOGE(TAG_STORAGE, "Invalid data");
         return ESP_FAIL;
     }
     
     FILE* f = fopen(file_path, "w");
     if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for writing: %s", file_path);
+        ESP_LOGE(TAG_STORAGE, "Failed to open file for writing: %s", file_path);
         return ESP_FAIL;
     }
     
     size_t bytes_written = fprintf(f, "%s", data);
     fclose(f);
     
-    ESP_LOGD(TAG, "Wrote %d bytes to %s", bytes_written, file_path);
+    ESP_LOGD(TAG_STORAGE, "Wrote %d bytes to %s", bytes_written, file_path);
     return ESP_OK;
 }
 
 esp_err_t um_storage_append_file(const char* file_path, const char* data)
 {
     if (data == NULL) {
-        ESP_LOGE(TAG, "Invalid data");
+        ESP_LOGE(TAG_STORAGE, "Invalid data");
         return ESP_FAIL;
     }
     
     FILE* f = fopen(file_path, "a");
     if (f == NULL) {
-        ESP_LOGE(TAG, "Failed to open file for appending: %s", file_path);
+        ESP_LOGE(TAG_STORAGE, "Failed to open file for appending: %s", file_path);
         return ESP_FAIL;
     }
     
     size_t bytes_written = fprintf(f, "%s", data);
     fclose(f);
     
-    ESP_LOGD(TAG, "Appended %d bytes to %s", bytes_written, file_path);
+    ESP_LOGD(TAG_STORAGE, "Appended %d bytes to %s", bytes_written, file_path);
     return ESP_OK;
 }
 
 esp_err_t um_storage_delete_file(const char* file_path)
 {
     if (unlink(file_path) != 0) {
-        ESP_LOGE(TAG, "Failed to delete file: %s", file_path);
+        ESP_LOGE(TAG_STORAGE, "Failed to delete file: %s", file_path);
         return ESP_FAIL;
     }
     
-    ESP_LOGD(TAG, "Deleted file: %s", file_path);
+    ESP_LOGD(TAG_STORAGE, "Deleted file: %s", file_path);
     return ESP_OK;
 }
 
@@ -169,7 +169,7 @@ esp_err_t um_storage_get_info(const char* partition_label, size_t* total, size_t
     
     esp_err_t ret = esp_spiffs_info(partition_label, total, used);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get storage info");
+        ESP_LOGE(TAG_STORAGE, "Failed to get storage info");
     }
     
     return ret;
@@ -179,18 +179,18 @@ esp_err_t um_storage_list_files(const char* path)
 {
     DIR* dir = opendir(path);
     if (dir == NULL) {
-        ESP_LOGE(TAG, "Failed to open directory: %s", path);
+        ESP_LOGE(TAG_STORAGE, "Failed to open directory: %s", path);
         return ESP_FAIL;
     }
     
     struct dirent* entry;
-    ESP_LOGI(TAG, "Files in %s:", path);
+    ESP_LOGI(TAG_STORAGE, "Files in %s:", path);
     
     while ((entry = readdir(dir)) != NULL) {
         if (entry->d_type == DT_REG) {
-            ESP_LOGI(TAG, "  FILE: %s", entry->d_name);
+            ESP_LOGI(TAG_STORAGE, "  FILE: %s", entry->d_name);
         } else if (entry->d_type == DT_DIR) {
-            ESP_LOGI(TAG, "  DIR: %s", entry->d_name);
+            ESP_LOGI(TAG_STORAGE, "  DIR: %s", entry->d_name);
         }
     }
     
@@ -198,9 +198,25 @@ esp_err_t um_storage_list_files(const char* path)
     return ESP_OK;
 }
 
-esp_err_t um_storage_read_json(const char* file_path, char* buffer, size_t buffer_size)
+char* um_storage_read_json_string(const char* file_path)
 {
-    return um_storage_read_file(file_path, buffer, buffer_size);
+    size_t file_size = um_storage_get_file_size(file_path);
+    if (file_size == 0) return NULL;
+    
+    char* buffer = malloc(file_size + 1);
+    if (!buffer) return NULL;
+    
+    FILE* f = fopen(file_path, "r");
+    if (!f) {
+        free(buffer);
+        return NULL;
+    }
+    
+    size_t read = fread(buffer, 1, file_size, f);
+    fclose(f);
+    
+    buffer[read] = '\0';
+    return buffer;
 }
 
 esp_err_t um_storage_write_json(const char* file_path, const char* json_data)
@@ -210,13 +226,13 @@ esp_err_t um_storage_write_json(const char* file_path, const char* json_data)
 
 esp_err_t um_storage_format(const char* partition_label)
 {
-    ESP_LOGW(TAG, "Formatting SPIFFS partition");
+    ESP_LOGW(TAG_STORAGE, "Formatting SPIFFS partition");
     esp_err_t ret = esp_spiffs_format(partition_label);
     
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to format SPIFFS (%s)", esp_err_to_name(ret));
+        ESP_LOGE(TAG_STORAGE, "Failed to format SPIFFS (%s)", esp_err_to_name(ret));
     } else {
-        ESP_LOGI(TAG, "SPIFFS formatted successfully");
+        ESP_LOGI(TAG_STORAGE, "SPIFFS formatted successfully");
     }
     
     return ret;

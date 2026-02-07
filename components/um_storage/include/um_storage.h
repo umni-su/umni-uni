@@ -107,14 +107,11 @@ esp_err_t um_storage_get_info(const char* partition_label, size_t* total, size_t
 esp_err_t um_storage_list_files(const char* path);
 
 /**
- * @brief Read JSON file (for your configs)
- * 
+ * @brief Read JSON file with automatic buffer allocation
  * @param file_path Full file path
- * @param buffer Buffer to store JSON
- * @param buffer_size Buffer size
- * @return esp_err_t ESP_OK on success
+ * @return char on success or NULL
  */
-esp_err_t um_storage_read_json(const char* file_path, char* buffer, size_t buffer_size);
+char* um_storage_read_json_string(const char* file_path);
 
 /**
  * @brief Write JSON file (for your configs)

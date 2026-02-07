@@ -295,6 +295,12 @@ dependencies:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_nvs
       type: local
     version: 1.0.0
+  um_storage:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_storage
+      type: local
+    version: 1.0.0
 direct_dependencies:
 - esp-idf-lib/ds18x20
 - esp-idf-lib/onewire
@@ -307,6 +313,7 @@ direct_dependencies:
 - sazanof/rf433_receiver
 - um_events
 - um_nvs
-manifest_hash: 73ec1130a703e3b4ae5a815035d3e4c4e9267f5327298a5c7f005797a3d167ee
+- um_storage
+manifest_hash: 4ed636c1eaa6748dc8d233999ea0270b801739d53bb4ddc4052cca89951cfbd3
 target: esp32
 version: 2.0.0

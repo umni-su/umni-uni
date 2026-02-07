@@ -3,6 +3,8 @@ dependencies:
     version: '>=5.5.2'
   um_events:
     path: ../um_events
+  um_storage:
+    path: ../um_storage
     version: "*"
   esp-idf-lib/onewire: 
     version: "*"
