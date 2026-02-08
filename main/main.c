@@ -43,6 +43,22 @@
 #include "um_onewire_config.h"
 #endif
 
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2) || UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+#include "um_adc_common.h"
+#endif
+
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
+#include "um_ntc.h"
+#endif
+
+#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+#include "um_adc.h"
+#endif
+
+#if UM_FEATURE_ENABLED(RF433)
+#include "um_rf433.h"
+#endif
+
 static const char *TAG = "MAIN";
 
 // Обработчик события 1
@@ -66,6 +82,39 @@ void app_main(void)
     um_nvs_init();
     // Spiffs
     um_storage_init("/spiffs", NULL, 5, true);
+
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2) || UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+    esp_err_t ret_adc = um_adc_common_init();
+    if (ret_adc != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to initialize ADC common");
+    }
+    else
+    {
+        ESP_LOGI(TAG, "ADC common handler initialize successfully");
+        adc_oneshot_unit_handle_t *adc_handle = &um_adc_common_handle;
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
+        ESP_LOGI(TAG, "Initializing NTC system...");
+        if (um_ntc_init(adc_handle) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to initialize NTC");
+            // Можно продолжить без NTC
+        }
+        um_ntc_set_all_enabled(true);
+#endif
+
+        // Инициализируем ADC если нужен
+#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+        ESP_LOGI(TAG, "Initializing ADC system...");
+        if (um_adc_init(adc_handle) != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to initialize ADC");
+            // Можно продолжить без ADC
+        }
+        um_adc_set_all_enabled(true);
+#endif
+    }
+#endif
 
     ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, handler1, NULL));
 
@@ -93,6 +142,10 @@ void app_main(void)
 
 #if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
     um_dio_init();
+#endif
+
+#if UM_FEATURE_ENABLED(RF433)
+    um_rf_433_init();
 #endif
 
 #if UM_FEATURE_ENABLED(ONEWIRE)
@@ -127,6 +180,47 @@ void app_main(void)
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
     um_webserver_start();
+#endif
+
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC1)
+    // Чтение всех температур
+    float temp1, temp2;
+    uint8_t success_read_ntc = um_ntc_read_all(&temp1, &temp2);
+
+#if UM_FEATURE_ENABLED(NTC1)
+    if (success_read_ntc & 0x01)
+    {
+        ESP_LOGI("MAIN", "NTC1: %.2f°C", temp1);
+    }
+#endif
+
+#if UM_FEATURE_ENABLED(NTC2)
+    if (success_read_ntc & 0x02)
+    {
+        ESP_LOGI("MAIN", "NTC2: %.2f°C", temp2);
+    }
+#endif
+
+#endif
+
+#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+    um_adc_set_all_enabled(true);
+    int raw1, raw2;
+
+    uint8_t success_read_adc = um_adc_read_all_raw(&raw1, &raw2);
+#if UM_FEATURE_ENABLED(AI1)
+    if (success_read_adc & 0x01)
+    {
+        ESP_LOGI("MAIN", "ADC1 raw: %d", raw1);
+    }
+#endif
+#if UM_FEATURE_ENABLED(AI2)
+    if (success_read_adc & 0x02)
+    {
+        ESP_LOGI("MAIN", "ADC2 raw: %d", raw2);
+    }
+#endif
+
 #endif
 
     ESP_LOGI(TAG, "========================================");

@@ -314,6 +314,6 @@ direct_dependencies:
 - um_events
 - um_nvs
 - um_storage
-manifest_hash: 4ed636c1eaa6748dc8d233999ea0270b801739d53bb4ddc4052cca89951cfbd3
+manifest_hash: c5b0aef3e109d186bb0bbb4c8937202827887fbc88a9b79fe41ec3a9934ff30d
 target: esp32
 version: 2.0.0

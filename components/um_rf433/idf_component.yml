@@ -1,0 +1,13 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+  um_events:
+    path: ../um_events
+  um_storage:
+    path: ../um_storage
+    version: "*"
+  sazanof/rf433_receiver: 
+    version: "*"
+description: UMNI rf433 component
+license: MIT
+version: 1.0.0
