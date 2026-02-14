@@ -1,8 +1,7 @@
 #include <string.h>
 #include <sys/param.h>
 #include "esp_log.h"
-#include "esp_http_server.h"
-#include "cJSON.h"
+
 #include "base_config.h"
 
 #include "um_webserver.h"
@@ -20,6 +19,16 @@ static httpd_handle_t server = NULL;
 
 typedef esp_err_t (*um_data_provider_t)(httpd_req_t *req, cJSON **data_out);
 
+typedef struct
+{
+    esp_err_t (*get_data)(httpd_req_t *, cJSON **);
+} get_ctx_t;
+
+typedef struct
+{
+    esp_err_t (*process_data)(httpd_req_t *, cJSON *, cJSON **);
+} post_ctx_t;
+
 // Простая HTML страница для теста, если нет SD карты
 static const char *TEST_HTML =
     "<!DOCTYPE html><html><head><title>UM WebServer</title>"
@@ -35,6 +44,18 @@ static const char *TEST_HTML =
     "<p>Версия: 1.0.0</p>"
     "<p>Используйте REST API для взаимодействия</p>"
     "</div></body></html>";
+
+static esp_err_t get_wrapper(httpd_req_t *req)
+{
+    get_ctx_t *ctx = (get_ctx_t *)req->user_ctx;
+    return um_webserver_base_get_handler(req, ctx->get_data);
+}
+
+static esp_err_t post_wrapper(httpd_req_t *req)
+{
+    post_ctx_t *ctx = (post_ctx_t *)req->user_ctx;
+    return um_webserver_base_post_handler(req, ctx->process_data);
+}
 
 /**
  * Базовый обработчик для всех GET запросов
@@ -93,7 +114,56 @@ static esp_err_t um_webserver_base_get_handler(
     }
 
     cJSON_Delete(root);
+    ESP_LOGW(REST_TAG, "Free heap size before: %ld", esp_get_free_heap_size());
     return http_ret;
+}
+
+esp_err_t um_webserver_register_get(const char *uri, esp_err_t (*data_func)(httpd_req_t *, cJSON **))
+{
+    if (!server || !uri || !data_func)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Создаем контекст
+    get_ctx_t *ctx = malloc(sizeof(get_ctx_t));
+    if (!ctx)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+    ctx->get_data = data_func;
+
+    // Регистрируем
+    httpd_uri_t uri_struct = {
+        .uri = uri,
+        .method = HTTP_GET,
+        .handler = get_wrapper, // ← обертка, не базовый обработчик!
+        .user_ctx = ctx,
+        //.free_ctx = free            // ← просто free
+    };
+
+    return httpd_register_uri_handler(server, &uri_struct);
+}
+
+esp_err_t um_webserver_register_post(const char *uri,
+                                     esp_err_t (*process_func)(httpd_req_t *, cJSON *, cJSON **))
+{
+    if (!server || !uri || !process_func)
+        return ESP_ERR_INVALID_ARG;
+
+    post_ctx_t *ctx = malloc(sizeof(post_ctx_t));
+    if (!ctx)
+        return ESP_ERR_NO_MEM;
+    ctx->process_data = process_func;
+
+    httpd_uri_t uri_struct = {
+        .uri = uri,
+        .method = HTTP_POST,
+        .handler = post_wrapper,
+        .user_ctx = ctx,
+    };
+
+    return httpd_register_uri_handler(server, &uri_struct);
 }
 
 /**
@@ -206,6 +276,8 @@ static esp_err_t um_webserver_base_post_handler(
     cJSON_Delete(root);
     cJSON_Delete(input);
 
+    ESP_LOGW(REST_TAG, "Free heap size before: %ld", esp_get_free_heap_size());
+
     return http_ret;
 }
 
@@ -268,115 +340,54 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     return ESP_OK;
 }
 
-static esp_err_t um_webserver_get_config_handler(httpd_req_t *req)
-{
-    return um_webserver_base_get_handler(req, get_config_data);
-}
-
 /**
  * @brief Тестовый GET обработчик
  */
-static esp_err_t um_webserver_test_get_handler(httpd_req_t *req)
+static esp_err_t um_webserver_test_get_handler(httpd_req_t *req, cJSON **data)
 {
     ESP_LOGI(REST_TAG, "GET запрос на URI: %s", req->uri);
 
-    cJSON *response = cJSON_CreateObject();
-    if (!response)
-    {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Ошибка создания JSON");
-        return ESP_FAIL;
-    }
+    cJSON *json = cJSON_CreateObject();
+    if (!json)
+        return ESP_ERR_NO_MEM;
 
-    cJSON_AddStringToObject(response, "status", "success");
-    cJSON_AddStringToObject(response, "message", "Веб-сервер работает");
-    cJSON_AddNumberToObject(response, "timestamp", 124);
-    cJSON_AddStringToObject(response, "uri", req->uri);
+    // Добавляем поля
+    cJSON_AddStringToObject(json, "message", "Hello World!");
+    cJSON_AddNumberToObject(json, "value", 42);
 
-    const char *json_str = cJSON_PrintUnformatted(response);
-    if (!json_str)
-    {
-        cJSON_Delete(response);
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Ошибка формирования JSON");
-        return ESP_FAIL;
-    }
-
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, json_str);
-
-    free((void *)json_str);
-    cJSON_Delete(response);
-
+    // Передаем указатель на созданный JSON
+    *data = json;
     return ESP_OK;
 }
 
 /**
  * @brief Обработчик для входа (POST)
  */
-static esp_err_t um_webserver_login_handler(httpd_req_t *req)
+static esp_err_t um_webserver_login_handler(httpd_req_t *req, cJSON *input, cJSON **output)
 {
-    ESP_LOGI(REST_TAG, "POST запрос на URI: %s", req->uri);
+    // Извлекаем данные из запроса
+    cJSON *username = cJSON_GetObjectItem(input, "username");
+    cJSON *password = cJSON_GetObjectItem(input, "password");
 
-    // Проверяем размер данных
-    if (req->content_len > 1024)
+    if (!username || !password || !username->valuestring || !password->valuestring)
     {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Слишком большой запрос");
-        return ESP_FAIL;
+        return ESP_ERR_INVALID_ARG;
     }
 
-    // Читаем данные
-    char buf[1025];
-    int received = httpd_req_recv(req, buf, MIN(req->content_len, sizeof(buf) - 1));
-    if (received <= 0)
+    // Проверка (в реальности - из NVS)
+    if (strcmp(username->valuestring, "admin") == 0 &&
+        strcmp(password->valuestring, "1234") == 0)
     {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Ошибка чтения данных");
-        return ESP_FAIL;
-    }
-    buf[received] = '\0';
 
-    // Парсим JSON
-    cJSON *json = cJSON_Parse(buf);
-    if (!json)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Неверный JSON");
-        return ESP_FAIL;
+        cJSON *data = cJSON_CreateObject();
+        cJSON_AddStringToObject(data, "token", "secret_token_12345");
+        cJSON_AddNumberToObject(data, "expires_in", 3600);
+
+        *output = data;
+        return ESP_OK;
     }
 
-    // Извлекаем данные
-    cJSON *username = cJSON_GetObjectItem(json, "username");
-    cJSON *password = cJSON_GetObjectItem(json, "password");
-
-    cJSON *response = cJSON_CreateObject();
-    if (!response)
-    {
-        cJSON_Delete(json);
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Ошибка создания ответа");
-        return ESP_FAIL;
-    }
-
-    // Простая проверка (в реальном коде здесь будет проверка с NVS)
-    if (username && password &&
-        username->valuestring && password->valuestring &&
-        strcmp(username->valuestring, "admin") == 0)
-    {
-        cJSON_AddBoolToObject(response, "success", true);
-        cJSON_AddStringToObject(response, "message", "Вход выполнен");
-        cJSON_AddStringToObject(response, "token", "dummy_token_12345");
-    }
-    else
-    {
-        cJSON_AddBoolToObject(response, "success", false);
-        cJSON_AddStringToObject(response, "message", "Неверные учетные данные");
-    }
-
-    const char *response_str = cJSON_PrintUnformatted(response);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_sendstr(req, response_str);
-
-    free((void *)response_str);
-    cJSON_Delete(response);
-    cJSON_Delete(json);
-
-    return ESP_OK;
+    return ESP_ERR_NOT_FOUND; // Неверные учетные данные
 }
 
 /**
@@ -419,30 +430,27 @@ esp_err_t um_webserver_start(void)
         return ret;
     }
 
-    httpd_uri_t config_get_uri = {
-        .uri = "/api/conf",
-        .method = HTTP_GET,
-        .handler = um_webserver_get_config_handler,
-        .user_ctx = NULL};
-    httpd_register_uri_handler(server, &config_get_uri);
+    um_webserver_register_get("/api/test", um_webserver_test_get_handler);
+    um_webserver_register_get("/api/conf", get_config_data);
+    um_webserver_register_post("/api/login", um_webserver_login_handler);
 
     // Регистрация обработчиков
 
     // Тестовый GET метод
-    httpd_uri_t test_get_uri = {
-        .uri = "/api/test",
-        .method = HTTP_GET,
-        .handler = um_webserver_test_get_handler,
-        .user_ctx = NULL};
-    httpd_register_uri_handler(server, &test_get_uri);
+    // httpd_uri_t test_get_uri = {
+    //     .uri = "/api/test",
+    //     .method = HTTP_GET,
+    //     .handler = um_webserver_test_get_handler,
+    //     .user_ctx = NULL};
+    // httpd_register_uri_handler(server, &test_get_uri);
 
     // POST метод для входа
-    httpd_uri_t login_post_uri = {
-        .uri = "/api/login",
-        .method = HTTP_POST,
-        .handler = um_webserver_login_handler,
-        .user_ctx = NULL};
-    httpd_register_uri_handler(server, &login_post_uri);
+    // httpd_uri_t login_post_uri = {
+    //     .uri = "/api/login",
+    //     .method = HTTP_POST,
+    //     .handler = um_webserver_login_handler,
+    //     .user_ctx = NULL};
+    // httpd_register_uri_handler(server, &login_post_uri);
 
     // Обработчик для корневого пути (статический HTML)
     httpd_uri_t root_uri = {
