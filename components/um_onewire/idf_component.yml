@@ -8,8 +8,10 @@ dependencies:
     version: "*"
   esp-idf-lib/onewire: 
     version: "*"
+    require: public
   esp-idf-lib/ds18x20: 
     version: "*"
+    require: public
 description: UMNI onewire component
 license: MIT
 version: 1.0.0

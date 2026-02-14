@@ -3,8 +3,13 @@
 #include "esp_log.h"
 #include "esp_http_server.h"
 #include "cJSON.h"
+#include "base_config.h"
 
 #include "um_webserver.h"
+
+#if UM_FEATURE_ENABLED(ONEWIRE)
+#include "um_onewire_config.h"
+#endif
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
 
@@ -28,6 +33,63 @@ static const char *TEST_HTML =
     "<p>Версия: 1.0.0</p>"
     "<p>Используйте REST API для взаимодействия</p>"
     "</div></body></html>";
+
+static esp_err_t um_webserver_get_config_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+
+    char *config = NULL;
+
+    char section[32] = {0};
+
+    // Получаем параметр "section" из query string
+    size_t query_len = httpd_req_get_url_query_len(req);
+    if (query_len > 0)
+    {
+        char *query = malloc(query_len + 1);
+        httpd_req_get_url_query_str(req, query, query_len + 1);
+
+        httpd_query_key_value(query, "section", section, sizeof(section));
+        free(query);
+    }
+
+    if (strcmp(section, "onewire") == 0)
+    {
+#if UM_FEATURE_ENABLED(ONEWIRE)
+        config = um_onewire_config_read();
+#endif
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    bool success = false;
+
+    if (config != NULL)
+    {
+        cJSON *data = cJSON_Parse(config);
+        if (cJSON_IsObject(root))
+        {
+            success = true;
+            cJSON_AddItemToObject(root, "data", data);
+        }
+    }
+    cJSON_AddBoolToObject(root, "success", success);
+    char *response = cJSON_PrintUnformatted(root);
+    if (response)
+    {
+        httpd_resp_sendstr(req, response);
+        free(response);
+    }
+    else
+    {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "JSON error");
+    }
+    cJSON_Delete(root);
+    free(config);
+
+    ESP_LOGW(REST_TAG, "Free heap size before: %ld", esp_get_free_heap_size());
+
+    return ESP_OK;
+}
 
 /**
  * @brief Тестовый GET обработчик
@@ -174,6 +236,13 @@ esp_err_t um_webserver_start(void)
         ESP_LOGE(WEBSERVER_TAG, "Web-server start error: %s", esp_err_to_name(ret));
         return ret;
     }
+
+    httpd_uri_t config_get_uri = {
+        .uri = "/api/conf",
+        .method = HTTP_GET,
+        .handler = um_webserver_get_config_handler,
+        .user_ctx = NULL};
+    httpd_register_uri_handler(server, &config_get_uri);
 
     // Регистрация обработчиков
 

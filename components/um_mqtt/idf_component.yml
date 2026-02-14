@@ -1,0 +1,10 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+  um_events:
+    path: ../um_events
+  um_nvs:
+    path: ../um_nvs
+description: UMNI MQTT component
+license: MIT
+version: 1.0.0

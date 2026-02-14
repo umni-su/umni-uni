@@ -4,6 +4,9 @@ dependencies:
   um_events:
     path: ../um_events
     version: "*"
+  um_onewire:
+    path: ../um_onewire
+    version: "*"
 description: UMNI webserver component
 license: MIT
 version: 1.0.0

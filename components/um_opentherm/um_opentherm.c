@@ -122,7 +122,6 @@ void um_opentherm_control_task_handler(void *pvParameter)
         }
         
         // Если OpenTherm включен - обычная логика работы
-        bool stat = false;
         esp_err_t res = um_ot_set_boiler_status(
             enableCentralHeating,
             enableHotWater, enableCooling,
