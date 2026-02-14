@@ -55,7 +55,7 @@ void um_rf433_receiver_task(void *pvParameter)
                 rf_devices[existing_index].time = esp_timer_get_time();
                 div = (rf_devices[existing_index].time - dev.time) / 1000;
 
-                dev.triggered = !dev.triggered && div > 200;
+                dev.triggered = !dev.triggered && (div > 200);
                 dev.state = state;
                 ESP_LOGI(TAG, "%.1f : Existing serial number %06lX, time %ld", div, dev.serial, rf_devices[existing_index].time);
             }
@@ -83,8 +83,8 @@ void um_rf433_receiver_task(void *pvParameter)
             }
             else
             {
-                ESP_LOGI(TAG, "[Device not added] Serial: %06lX, State: %d", number, state);
-                ESP_LOGI(TAG, "[Device not added] Channels: A:%d B:%d C:%d D:%d", chan1, chan2, chan3, chan4);
+                // ESP_LOGI(TAG, "[Device not added] Serial: %06lX, State: %d", number, state);
+                // ESP_LOGI(TAG, "[Device not added] Channels: A:%d B:%d C:%d D:%d", chan1, chan2, chan3, chan4);
             }
 
             if (search)
