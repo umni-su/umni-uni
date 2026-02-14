@@ -18,6 +18,8 @@
 static const char *REST_TAG = "um_webserver";
 static httpd_handle_t server = NULL;
 
+typedef esp_err_t (*um_data_provider_t)(httpd_req_t *req, cJSON **data_out);
+
 // Простая HTML страница для теста, если нет SD карты
 static const char *TEST_HTML =
     "<!DOCTYPE html><html><head><title>UM WebServer</title>"
@@ -34,46 +36,51 @@ static const char *TEST_HTML =
     "<p>Используйте REST API для взаимодействия</p>"
     "</div></body></html>";
 
-static esp_err_t um_webserver_get_config_handler(httpd_req_t *req)
+/**
+ * Базовый обработчик для всех GET запросов
+ * @param req HTTP запрос
+ * @param get_data функция, которая заполняет data
+ */
+static esp_err_t um_webserver_base_get_handler(
+    httpd_req_t *req,
+    esp_err_t (*get_data)(httpd_req_t *, cJSON **))
 {
     httpd_resp_set_type(req, "application/json");
 
-    char *config = NULL;
-
-    char section[32] = {0};
-
-    // Получаем параметр "section" из query string
-    size_t query_len = httpd_req_get_url_query_len(req);
-    if (query_len > 0)
-    {
-        char *query = malloc(query_len + 1);
-        httpd_req_get_url_query_str(req, query, query_len + 1);
-
-        httpd_query_key_value(query, "section", section, sizeof(section));
-        free(query);
-    }
-
-    if (strcmp(section, "onewire") == 0)
-    {
-#if UM_FEATURE_ENABLED(ONEWIRE)
-        config = um_onewire_config_read();
-#endif
-    }
-
     cJSON *root = cJSON_CreateObject();
-    bool success = false;
-
-    if (config != NULL)
+    if (!root)
     {
-        cJSON *data = cJSON_Parse(config);
-        if (cJSON_IsObject(root))
-        {
-            success = true;
-            cJSON_AddItemToObject(root, "data", data);
-        }
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
+        return ESP_FAIL;
     }
-    cJSON_AddBoolToObject(root, "success", success);
+
+    cJSON *data = NULL;
+    esp_err_t ret = get_data(req, &data);
+
+    cJSON_AddBoolToObject(root, "success", (ret == ESP_OK && data));
+
+    if (ret == ESP_OK && data)
+    {
+        cJSON_AddItemToObject(root, "data", data);
+    }
+    else
+    {
+        const char *err_msg = "Unknown error";
+        if (ret == ESP_ERR_INVALID_ARG)
+            err_msg = "Invalid arguments";
+        else if (ret == ESP_ERR_NOT_FOUND)
+            err_msg = "Not found";
+        else if (ret == ESP_ERR_NOT_SUPPORTED)
+            err_msg = "Feature disabled";
+        else if (ret == ESP_ERR_NO_MEM)
+            err_msg = "Out of memory";
+
+        cJSON_AddStringToObject(root, "error", err_msg);
+    }
+
     char *response = cJSON_PrintUnformatted(root);
+    esp_err_t http_ret = ESP_OK;
+
     if (response)
     {
         httpd_resp_sendstr(req, response);
@@ -82,13 +89,188 @@ static esp_err_t um_webserver_get_config_handler(httpd_req_t *req)
     else
     {
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "JSON error");
+        http_ret = ESP_FAIL;
     }
+
     cJSON_Delete(root);
-    free(config);
+    return http_ret;
+}
 
-    ESP_LOGW(REST_TAG, "Free heap size before: %ld", esp_get_free_heap_size());
+/**
+ * Базовый обработчик для ВСЕХ POST запросов
+ * @param req HTTP запрос
+ * @param process_data функция, которая обрабатывает входные данные и создает выходные
+ */
+static esp_err_t um_webserver_base_post_handler(
+    httpd_req_t *req,
+    esp_err_t (*process_data)(httpd_req_t *, cJSON *input, cJSON **output))
+{
+    httpd_resp_set_type(req, "application/json");
 
+    // 1. Читаем тело запроса (то, что прислал клиент)
+    if (req->content_len == 0)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty request");
+        return ESP_FAIL;
+    }
+
+    // Ограничим размер для безопасности
+    if (req->content_len > 2048)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Request too large");
+        return ESP_FAIL;
+    }
+
+    char *content = malloc(req->content_len + 1);
+    if (!content)
+    {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
+        return ESP_FAIL;
+    }
+
+    int received = httpd_req_recv(req, content, req->content_len);
+    if (received <= 0)
+    {
+        free(content);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to read data");
+        return ESP_FAIL;
+    }
+    content[received] = '\0';
+
+    // 2. Парсим входной JSON
+    cJSON *input = cJSON_Parse(content);
+    free(content);
+
+    if (!input)
+    {
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_FAIL;
+    }
+
+    // 3. Вызываем функцию обработки
+    cJSON *output = NULL;
+    esp_err_t ret = process_data(req, input, &output);
+
+    // 4. Формируем ответ (как в GET, но может включать данные от process_data)
+    cJSON *root = cJSON_CreateObject();
+    if (!root)
+    {
+        cJSON_Delete(input);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
+        return ESP_FAIL;
+    }
+
+    cJSON_AddBoolToObject(root, "success", (ret == ESP_OK));
+
+    if (ret == ESP_OK)
+    {
+        if (output)
+        {
+            cJSON_AddItemToObject(root, "data", output);
+        }
+        else
+        {
+            cJSON_AddStringToObject(root, "message", "Operation successful");
+        }
+    }
+    else
+    {
+        const char *err_msg = "Operation failed";
+        if (ret == ESP_ERR_INVALID_ARG)
+            err_msg = "Invalid arguments";
+        else if (ret == ESP_ERR_NOT_FOUND)
+            err_msg = "Resource not found";
+        else if (ret == ESP_ERR_NOT_SUPPORTED)
+            err_msg = "Feature disabled";
+        else if (ret == ESP_ERR_NO_MEM)
+            err_msg = "Out of memory";
+
+        cJSON_AddStringToObject(root, "error", err_msg);
+    }
+
+    // 5. Отправляем ответ
+    char *response = cJSON_PrintUnformatted(root);
+    esp_err_t http_ret = ESP_OK;
+
+    if (response)
+    {
+        httpd_resp_sendstr(req, response);
+        free(response);
+    }
+    else
+    {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "JSON error");
+        http_ret = ESP_FAIL;
+    }
+
+    cJSON_Delete(root);
+    cJSON_Delete(input);
+
+    return http_ret;
+}
+
+static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
+{
+    char section[32] = {0};
+
+    // 1. Получаем параметры (всегда одинаково)
+    size_t query_len = httpd_req_get_url_query_len(req);
+    if (query_len > 0)
+    {
+        char *query = malloc(query_len + 1);
+        if (!query)
+            return ESP_ERR_NO_MEM;
+
+        if (httpd_req_get_url_query_str(req, query, query_len + 1) == ESP_OK)
+        {
+            httpd_query_key_value(query, "section", section, sizeof(section));
+        }
+        free(query);
+    }
+
+    // 2. Проверяем обязательные параметры
+    if (strlen(section) == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // 3. Твоя логика получения данных
+    char *config_str = NULL;
+
+    if (strcmp(section, "onewire") == 0)
+    {
+#if UM_FEATURE_ENABLED(ONEWIRE)
+        config_str = um_onewire_config_read();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (!config_str)
+    {
+        return ESP_FAIL;
+    }
+
+    // 4. Парсим JSON (всегда одинаково для строк)
+    cJSON *json = cJSON_Parse(config_str);
+    free(config_str);
+
+    if (!json)
+    {
+        return ESP_FAIL;
+    }
+
+    *data = json;
     return ESP_OK;
+}
+
+static esp_err_t um_webserver_get_config_handler(httpd_req_t *req)
+{
+    return um_webserver_base_get_handler(req, get_config_data);
 }
 
 /**

@@ -4,24 +4,25 @@
 #include "base_config.h"
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
 
-/**
- * @brief Инициализация и запуск веб-сервера
- * 
- * @return esp_err_t 
- */
-esp_err_t um_webserver_start(void);
+    /**
+     * @brief Инициализация и запуск веб-сервера
+     *
+     * @return esp_err_t
+     */
+    esp_err_t um_webserver_start(void);
 
-/**
- * @brief Остановка веб-сервера
- * 
- * @return esp_err_t 
- */
-esp_err_t um_webserver_stop(void);
+    /**
+     * @brief Остановка веб-сервера
+     *
+     * @return esp_err_t
+     */
+    esp_err_t um_webserver_stop(void);
 
 #endif // UM_FEATURE_ENABLED(WEBSERVER)
 
