@@ -1,6 +1,9 @@
 dependencies:
   idf:
     version: '>=5.5.2'
+  um_helpers:
+    path: "../um_helpers"
+    version: "*"
 description: UMNI NVS component
 license: MIT
 version: 1.0.0

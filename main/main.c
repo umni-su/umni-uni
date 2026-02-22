@@ -6,6 +6,7 @@
 #include "um_storage.h"
 #include "um_nvs.h"
 #include "um_capabilities.h"
+#include "include/um_main_tasks.h"
 
 #if UM_FEATURE_ENABLED(ETHERNET)
 #include "um_ethernet.h"
@@ -66,10 +67,64 @@
 
 static const char *TAG = "MAIN";
 
-// Обработчик события 1
-void handler1(void *arg, esp_event_base_t base, int32_t id, void *data)
+static bool has_connection = false;
+static bool eth_connected = false;
+static bool wifi_connected = false;
+
+char *hostname = NULL;
+
+// Обработчик события получения IP
+void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
-    ESP_LOGI(TAG, "Handler1: Получено событие %ld", (long)id);
+    switch (id)
+    {
+    case UMNI_EVENT_ETH_CONNECTED:
+        eth_connected = true;
+        has_connection = true;
+        break;
+
+    default:
+        break;
+    }
+    if (has_connection)
+    {
+#if UM_FEATURE_ENABLED(MQTT)
+        um_mqtt_init(hostname != NULL ? hostname : "umni-unknown");
+#endif
+
+#if UM_FEATURE_ENABLED(WEBSERVER)
+        um_webserver_start();
+#endif
+    }
+    ESP_LOGI(TAG, "um_main_connected_handler: Получено событие %ld", (long)id);
+}
+// Обработчик событий отключения от сети (Ethernet, WiFi)
+void um_main_disconnected_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
+{
+    switch (id)
+    {
+    case UMNI_EVENT_ETH_DISCONNECTED:
+        eth_connected = false;
+        if (!wifi_connected)
+        {
+            has_connection = false;
+        }
+        break;
+
+    default:
+        break;
+    }
+    if (!has_connection)
+    {
+#if UM_FEATURE_ENABLED(MQTT)
+        um_mqtt_deinit();
+        ESP_LOGI(TAG, "Deinit MQTT");
+#endif
+#if UM_FEATURE_ENABLED(WEBSERVER)
+        um_webserver_stop();
+        ESP_LOGI(TAG, "Stop webserver");
+#endif
+    }
 }
 
 void app_main(void)
@@ -90,6 +145,8 @@ void app_main(void)
     um_nvs_init();
     // Spiffs
     um_storage_init("/spiffs", NULL, 5, true);
+
+    um_nvs_get_hostname(&hostname);
 
 #if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2) || UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
     esp_err_t ret_adc = um_adc_common_init();
@@ -124,7 +181,8 @@ void app_main(void)
     }
 #endif
 
-    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, handler1, NULL));
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_CONNECTED, um_main_connected_handler, NULL));
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_DISCONNECTED, um_main_disconnected_handler, NULL));
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
     um_opencollectors_init();
@@ -170,16 +228,6 @@ void app_main(void)
 
 #if UM_FEATURE_ENABLED(ETHERNET)
     um_ethernet_init();
-#endif
-
-#if UM_FEATURE_ENABLED(ETHERNET) | UM_FEATURE_ENABLED(WIFI)
-#if UM_FEATURE_ENABLED(MQTT)
-    um_mqtt_init("umni-c1");
-#endif
-
-#if UM_FEATURE_ENABLED(WEBSERVER)
-    um_webserver_start();
-#endif
 #endif
 
 #if UM_FEATURE_ENABLED(SDCARD)
@@ -230,8 +278,5 @@ void app_main(void)
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");
 
-    while (1)
-    {
-        vTaskDelay(pdMS_TO_TICKS(10000));
-    }
+    um_task_read_sensors();
 }

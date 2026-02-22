@@ -3,11 +3,16 @@
 #include "esp_log.h"
 
 #include "base_config.h"
+#include "um_nvs.h"
 
 #include "um_webserver.h"
 
 #if UM_FEATURE_ENABLED(ONEWIRE)
 #include "um_onewire_config.h"
+#endif
+
+#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
+#include "um_dio.h"
 #endif
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
@@ -340,22 +345,82 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     return ESP_OK;
 }
 
-/**
- * @brief Тестовый GET обработчик
- */
-static esp_err_t um_webserver_test_get_handler(httpd_req_t *req, cJSON **data)
+static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON **data)
 {
-    ESP_LOGI(REST_TAG, "GET запрос на URI: %s", req->uri);
+    char mode[32] = {0};
+    char level[8] = {0};
+    char index[8] = {0};
 
-    cJSON *json = cJSON_CreateObject();
+    // 1. Получаем параметры (всегда одинаково)
+    size_t query_len = httpd_req_get_url_query_len(req);
+    if (query_len > 0)
+    {
+        char *query = malloc(query_len + 1);
+        if (!query)
+            return ESP_ERR_NO_MEM;
+
+        if (httpd_req_get_url_query_str(req, query, query_len + 1) == ESP_OK)
+        {
+            httpd_query_key_value(query, "mode", mode, sizeof(mode));
+            httpd_query_key_value(query, "level", level, sizeof(level));
+            httpd_query_key_value(query, "index", index, sizeof(index));
+
+            ESP_LOGI(REST_TAG, "Raw values: mode='%s', level='%s', index='%s'",
+                     mode, level, index);
+        }
+        free(query);
+    }
+
+    // 2. Проверяем обязательные параметры
+    if (strlen(mode) == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // 3. Твоя логика получения данных
+    char *config_str = NULL;
+
+    if (strcmp(mode, "outputs") == 0)
+    {
+#if UM_FEATURE_ENABLED(OUTPUTS)
+        if (strlen(level) > 0 && strlen(index) > 0)
+        {
+            int idx = atoi(index);
+            int lvl = atoi(level);
+
+            ESP_LOGI(REST_TAG, "Setting output %d to %d", idx, lvl);
+
+            if (idx >= 0 && idx < 8 && (lvl == 0 || lvl == 1))
+            {
+                um_dio_set_output(idx, lvl);
+            }
+            else
+            {
+                ESP_LOGW(REST_TAG, "Invalid values: index=%d, level=%d", idx, lvl);
+                return ESP_ERR_INVALID_ARG;
+            }
+        }
+#endif
+    }
+    else
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    if (!config_str)
+    {
+        return ESP_FAIL;
+    }
+
+    // 4. Парсим JSON (всегда одинаково для строк)
+    cJSON *json = cJSON_Parse(config_str);
+    free(config_str);
+
     if (!json)
-        return ESP_ERR_NO_MEM;
+    {
+        return ESP_FAIL;
+    }
 
-    // Добавляем поля
-    cJSON_AddStringToObject(json, "message", "Hello World!");
-    cJSON_AddNumberToObject(json, "value", 42);
-
-    // Передаем указатель на созданный JSON
     *data = json;
     return ESP_OK;
 }
@@ -382,6 +447,50 @@ static esp_err_t um_webserver_login_handler(httpd_req_t *req, cJSON *input, cJSO
         cJSON *data = cJSON_CreateObject();
         cJSON_AddStringToObject(data, "token", "secret_token_12345");
         cJSON_AddNumberToObject(data, "expires_in", 3600);
+
+        *output = data;
+        return ESP_OK;
+    }
+
+    return ESP_ERR_NOT_FOUND; // Неверные учетные данные
+}
+
+static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+    // Ключ настройки
+    cJSON *setting = cJSON_GetObjectItem(input, "setting");
+
+    // Объект значений настройки
+    cJSON *values = cJSON_GetObjectItem(input, "values");
+
+    if (!setting || !setting->valuestring || !values || !cJSON_IsObject(values))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Проверка (в реальности - из NVS)
+    if (strcmp(setting->valuestring, "mqtt") == 0)
+    {
+        // {values: {en: bool, host: string, port: int, user: ?string, password: ?string}}
+        cJSON *en = cJSON_GetObjectItem(values, "en");
+        cJSON *host = cJSON_GetObjectItem(values, "host");
+        cJSON *port = cJSON_GetObjectItem(values, "port");
+        cJSON *username = cJSON_GetObjectItem(values, "username");
+        cJSON *password = cJSON_GetObjectItem(values, "password");
+        bool auth = false;
+        if (username->valuestring && password->valuestring)
+        {
+            auth = true;
+        }
+        if (cJSON_IsBool(en))
+        {
+            um_nvs_set_mqtt_enabled(cJSON_IsTrue(en));
+        }
+        um_nvs_set_mqtt_username(auth ? username->valuestring : NULL);
+        um_nvs_set_mqtt_password(auth ? password->valuestring : NULL);
+        um_nvs_set_mqtt_host(host->valuestring ? host->valuestring : "localhost");
+        um_nvs_set_mqtt_port(port->valueint ? port->valueint : 1883);
+        cJSON *data = cJSON_CreateObject();
 
         *output = data;
         return ESP_OK;
@@ -430,27 +539,10 @@ esp_err_t um_webserver_start(void)
         return ret;
     }
 
-    um_webserver_register_get("/api/test", um_webserver_test_get_handler);
+    um_webserver_register_get("/api/test", um_webserver_on_off_handler);
     um_webserver_register_get("/api/conf", get_config_data);
     um_webserver_register_post("/api/login", um_webserver_login_handler);
-
-    // Регистрация обработчиков
-
-    // Тестовый GET метод
-    // httpd_uri_t test_get_uri = {
-    //     .uri = "/api/test",
-    //     .method = HTTP_GET,
-    //     .handler = um_webserver_test_get_handler,
-    //     .user_ctx = NULL};
-    // httpd_register_uri_handler(server, &test_get_uri);
-
-    // POST метод для входа
-    // httpd_uri_t login_post_uri = {
-    //     .uri = "/api/login",
-    //     .method = HTTP_POST,
-    //     .handler = um_webserver_login_handler,
-    //     .user_ctx = NULL};
-    // httpd_register_uri_handler(server, &login_post_uri);
+    um_webserver_register_post("/api/settings", um_webserver_save_settings_handler);
 
     // Обработчик для корневого пути (статический HTML)
     httpd_uri_t root_uri = {

@@ -11,6 +11,7 @@
 #include "nvs.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "um_helpers.h"
 
 static const char *TAG = "nvs";
 
@@ -51,6 +52,20 @@ esp_err_t um_nvs_init(void)
     }
 
     ESP_LOGI(TAG, "NVS initialized successfully");
+    char *hostname = NULL;
+    um_nvs_get_hostname(&hostname);
+    if (hostname == NULL)
+    {
+        char device_name[32];
+        um_helpers_generate_device_name_from_mac("umni-", device_name, sizeof(device_name));
+        um_nvs_set_hostname(device_name);
+        ESP_LOGI(TAG, "Generate device name %s", hostname);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Load device name %s", hostname);
+    }
+    free(hostname);
     return ESP_OK;
 }
 
