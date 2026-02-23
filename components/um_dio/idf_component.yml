@@ -4,6 +4,9 @@ dependencies:
   um_nvs:
     path: ../um_nvs
     version: "*"
+  um_capabilities:
+    path: ../um_capabilities
+    version: "*"
   um_events:
     path: ../um_events
     version: "*"

@@ -1,4 +1,4 @@
 idf_component_register(
-    SRCS "main.c" "um_main_tasks.c"
+    SRCS "main.c"
     INCLUDE_DIRS "."
     )

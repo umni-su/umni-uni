@@ -7,7 +7,7 @@
 #include "esp_log.h"
 #include "esp_timer.h"
 #include "esp_system.h"
-
+#include "cJSON.h"
 #include "base_config.h"
 
 #if UM_FEATURE_ENABLED(MQTT)
@@ -572,6 +572,40 @@ esp_err_t um_mqtt_publish(const char *topic, const char *data, int qos, int reta
     ESP_LOGI(TAG, "Published to %s: %s", full_topic, data);
     log_free_heap(__FUNCTION__);
     return ESP_OK;
+}
+
+esp_err_t um_mqtt_publish_sensor_payload(const char *topic, um_mqtt_sensor_payload_t payload, int qos, int retain)
+{
+    char full_topic[128]; // Буфер для итогового пути
+    snprintf(full_topic, sizeof(full_topic), "/sensors/%s", topic);
+
+    esp_err_t res = ESP_FAIL;
+    cJSON *json_data = cJSON_CreateObject();
+    if (json_data == NULL)
+        return ESP_FAIL;
+    const char *cap_str = um_capabilities_get_name(payload.capability);
+
+    cJSON_AddNumberToObject(json_data, "value", payload.value);
+    cJSON_AddStringToObject(json_data, "capability", cap_str);
+
+    if (payload.serial == NULL)
+    {
+        cJSON_AddNullToObject(json_data, "serial");
+    }
+    else
+    {
+        cJSON_AddStringToObject(json_data, "serial", payload.serial);
+    }
+
+    char *data = cJSON_PrintUnformatted(json_data);
+
+    if (data != NULL)
+    {
+        res = um_mqtt_publish(full_topic, data, qos, retain);
+        free(data);
+    }
+    cJSON_Delete(json_data);
+    return res;
 }
 
 esp_err_t um_mqtt_publish_full(const char *full_topic, const char *data, int qos, int retain)

@@ -6,7 +6,6 @@
 #include "um_storage.h"
 #include "um_nvs.h"
 #include "um_capabilities.h"
-#include "include/um_main_tasks.h"
 
 #if UM_FEATURE_ENABLED(ETHERNET)
 #include "um_ethernet.h"
@@ -73,6 +72,8 @@ static bool wifi_connected = false;
 
 char *hostname = NULL;
 
+TaskHandle_t um_sensors_task_handle = NULL;
+
 // Обработчик события получения IP
 void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
@@ -125,6 +126,74 @@ void um_main_disconnected_handler(void *arg, esp_event_base_t base, int32_t id, 
         ESP_LOGI(TAG, "Stop webserver");
 #endif
     }
+}
+
+void um_read_sensors(void *args)
+{
+    um_mqtt_sensor_payload_t payload = {0};
+
+    ESP_LOGI("SENSORS", "Start reading sensors");
+    while (true)
+    {
+#if UM_FEATURE_ENABLED(ONEWIRE)
+        um_onewire_state_t *onewire_state = um_onewire_get_state();
+        if (onewire_state->initialized)
+        {
+            for (int i = 0; i < onewire_state->sensor_count; i++)
+            {
+                const um_onewire_sensor_t *sensor = &onewire_state->sensors[i];
+                if (sensor->active)
+                {
+                    float ow_temp;
+                    um_onewire_read_temperature(sensor->address, &ow_temp);
+                    payload.capability = UM_CAP_ONEWIRE;
+                    payload.serial = sensor->serial;
+                    payload.value = ow_temp;
+                    um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_ONEWIRE, payload, 0, 0);
+                    ESP_LOGI(TAG, "[um_read_sensors][onewire] sn:%s, temp: %.2f", sensor->serial, ow_temp);
+                }
+            }
+        }
+#endif
+#if UM_FEATURE_ENABLED(NTC1)
+        float temp1;
+        um_ntc_read_temperature(UM_NTC_CHANNEL_1, &temp1);
+        ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc1, temp: %.2f", temp1);
+        payload.capability = UM_CAP_NTC1;
+        payload.serial = NULL;
+        payload.value = temp1;
+        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
+#endif
+#if UM_FEATURE_ENABLED(NTC2)
+        float temp2;
+        um_ntc_read_temperature(UM_NTC_CHANNEL_2, &temp2);
+        payload.capability = UM_CAP_NTC2;
+        payload.serial = NULL;
+        payload.value = temp2;
+        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
+        ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc2, temp: %.2f", temp2);
+#endif
+#if UM_FEATURE_ENABLED(AI1)
+        int adc1;
+        um_adc_read_raw(UM_ADC_CHANNEL_1, &adc1);
+        payload.capability = UM_CAP_AI1;
+        payload.serial = NULL;
+        payload.value = adc1;
+        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
+        ESP_LOGI(TAG, "[um_read_sensors][adc] adc1, val: %d", adc1);
+#endif
+#if UM_FEATURE_ENABLED(AI2)
+        int adc2;
+        um_adc_read_raw(UM_ADC_CHANNEL_2, &adc2);
+        payload.capability = UM_CAP_AI2;
+        payload.serial = NULL;
+        payload.value = adc2;
+        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
+        ESP_LOGI(TAG, "[um_read_sensors][adc] adc2, val: %d", adc2);
+#endif
+        vTaskDelay(60000 / portTICK_PERIOD_MS);
+    }
+    vTaskDelete(NULL);
 }
 
 void app_main(void)
@@ -278,5 +347,5 @@ void app_main(void)
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");
 
-    um_task_read_sensors();
+    xTaskCreatePinnedToCore(um_read_sensors, "um_read_sensors", 4096, NULL, 3, &um_sensors_task_handle, 1);
 }

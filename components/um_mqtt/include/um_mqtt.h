@@ -4,6 +4,7 @@
 #include "esp_err.h"
 #include "mqtt_client.h"
 #include "base_config.h"
+#include "um_capabilities.h"
 
 #if UM_FEATURE_ENABLED(MQTT)
 
@@ -21,6 +22,13 @@
 #define UM_MQTT_TOPIC_SUBSCRIBE "/subscribe"
 #define UM_MQTT_TOPIC_CONFIG "/config"
 
+#define UM_MQTT_TOPIC_AI "ai"
+#define UM_MQTT_TOPIC_NTC "ntc"
+#define UM_MQTT_TOPIC_INPUTS "di"
+#define UM_MQTT_TOPIC_OUTPUTS "do"
+#define UM_MQTT_TOPIC_ONEWIRE "onewire"
+#define UM_MQTT_TOPIC_OPENTHERM "ot"
+
 // Структура статуса подключения
 typedef struct
 {
@@ -31,6 +39,13 @@ typedef struct
     bool enabled;
     esp_mqtt_client_handle_t client;
 } um_mqtt_status_t;
+
+typedef struct
+{
+    um_capability_t capability;
+    float value;
+    char *serial;
+} um_mqtt_sensor_payload_t;
 
 // Коллбэк для обработки входящих сообщений
 typedef void (*um_mqtt_data_callback_t)(const char *topic, const char *data, int data_len);
@@ -61,6 +76,16 @@ um_mqtt_status_t um_mqtt_get_status(void);
  * @return esp_err_t ESP_OK при успехе
  */
 esp_err_t um_mqtt_publish(const char *topic, const char *data, int qos, int retain);
+
+/**
+ * @brief Опубликовать данные в топик
+ * @param topic Топик (будет автоматически дополнен префиксом device/{client_id})
+ * @param payload Payload для публикации
+ * @param qos QoS (0, 1 или 2)
+ * @param retain Retain флаг
+ * @return esp_err_t ESP_OK при успехе
+ */
+esp_err_t um_mqtt_publish_sensor_payload(const char *topic, um_mqtt_sensor_payload_t payload, int qos, int retain);
 
 /**
  * @brief Опубликовать данные в полный топик (без автоматического префикса)
