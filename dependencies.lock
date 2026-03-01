@@ -349,6 +349,6 @@ direct_dependencies:
 - um_nvs
 - um_onewire
 - um_storage
-manifest_hash: 8b2c8a3ece1727d3a1a1224705e88b3d7bcea247e03d12ec154ab4573a93e838
+manifest_hash: 51eba71145043c811afcb095e62144a876fdb0cbe39ece65bae1bf414b3f3f9b
 target: esp32
 version: 2.0.0

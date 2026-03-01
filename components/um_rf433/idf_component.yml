@@ -6,6 +6,9 @@ dependencies:
   um_storage:
     path: ../um_storage
     version: "*"
+  um_mqtt:
+    path: ../um_mqtt
+    version: "*"
   sazanof/rf433_receiver: 
     version: "*"
 description: UMNI rf433 component

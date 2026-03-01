@@ -1,5 +1,6 @@
 #include "um_rf433.h"
 #include "um_rf433_config.h"
+#include "um_mqtt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <freertos/queue.h>
@@ -72,7 +73,7 @@ void um_rf433_receiver_task(void *pvParameter)
             dev->state = state;
 
             // Если это событие срабатывания - отправляем уведомление
-            if (dev->triggered)
+            if (dev->triggered && dev->serial > 0)
             {
                 ESP_LOGW(TAG, "=== TRIGGERED ===");
                 ESP_LOGW(TAG, "Serial: %06lX, Alarm: %s",
@@ -82,7 +83,7 @@ void um_rf433_receiver_task(void *pvParameter)
                 ESP_LOGI(TAG, "Time diff: %.1f ms, Packet #%d",
                          time_diff_ms, dev->packet_count);
 
-                // Отправка события в систему
+                                // Отправка события в систему
                 /*
                 um_ev_message_rf433 message = {
                     .alarm = dev->alarm,
