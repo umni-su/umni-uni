@@ -1,9 +1,88 @@
 #include <string.h>
 #include "esp_mac.h"
 #include "esp_log.h"
+#include "esp_netif.h"
+#include "esp_heap_caps.h"
+#include "lwip/ip_addr.h"
+#include "um_helpers.h"
 
 #define DEVICE_NAME_PREFIX "umni-"
 #define DEVICE_NAME_MAX_LEN 32
+
+/**
+ * @brief Получает информацию о всех сетевых интерфейсах
+ */
+int um_helpers_get_network_interfaces(um_network_interface_info_t *interfaces, int max_count)
+{
+    if (!interfaces || max_count <= 0)
+    {
+        return 0;
+    }
+
+    int count = 0;
+    esp_netif_t *netif = esp_netif_next(NULL);
+
+    while (netif != NULL && count < max_count)
+    {
+        esp_netif_ip_info_t ip_info;
+        if (esp_netif_get_ip_info(netif, &ip_info) == ESP_OK)
+        {
+            um_network_interface_info_t *info = &interfaces[count];
+            const char *ifkey = esp_netif_get_ifkey(netif);
+
+            // Красиво именуем интерфейс для вывода
+            if (strstr(ifkey, "STA"))
+            {
+                strncpy(info->interface_name, "wifi_sta", sizeof(info->interface_name));
+            }
+            else if (strstr(ifkey, "AP"))
+            {
+                strncpy(info->interface_name, "wifi_ap", sizeof(info->interface_name));
+            }
+            else if (strstr(ifkey, "ETH"))
+            {
+                strncpy(info->interface_name, "ethernet", sizeof(info->interface_name));
+            }
+            else
+            {
+                // Если ключ специфичный (как у W5500), копируем как есть
+                strncpy(info->interface_name, ifkey, sizeof(info->interface_name));
+            }
+
+            // Заполняем сетевые параметры
+            snprintf(info->ip_address, sizeof(info->ip_address), IPSTR, IP2STR(&ip_info.ip));
+            snprintf(info->netmask, sizeof(info->netmask), IPSTR, IP2STR(&ip_info.netmask));
+            snprintf(info->gateway, sizeof(info->gateway), IPSTR, IP2STR(&ip_info.gw));
+
+            // Интерфейс считаем активным, если поднят линк и получен IP
+            // Дополнительно можно проверить esp_netif_is_netif_up(netif)
+            info->is_active = (ip_info.ip.addr != 0) ? 1 : 0;
+
+            count++;
+        }
+        netif = esp_netif_next(netif);
+    }
+
+    return count;
+}
+
+/**
+ * @brief Получает информацию о доступной памяти
+ */
+int um_helpers_get_memory_info(um_memory_info_t *info)
+{
+    if (!info)
+    {
+        return -1;
+    }
+
+    // Информация о внутренней памяти
+    info->total_heap = esp_get_free_heap_size() + esp_get_free_internal_heap_size();
+    info->free_heap = esp_get_free_heap_size();
+    info->min_free_heap = heap_caps_get_minimum_free_size(MALLOC_CAP_DEFAULT);
+
+    return 0;
+}
 
 /**
  * @brief Генерирует имя устройства на основе MAC-адреса

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
+#include "esp_system.h"
 #include "base_config.h"
 #include "um_events.h"
 #include "um_storage.h"
@@ -136,7 +137,7 @@ void um_read_sensors(void *args)
     while (true)
     {
 #if UM_FEATURE_ENABLED(ONEWIRE)
-        um_onewire_state_t *onewire_state = um_onewire_get_state();
+        const um_onewire_state_t *onewire_state = um_onewire_get_state();
         if (onewire_state->initialized)
         {
             for (int i = 0; i < onewire_state->sensor_count; i++)
@@ -146,10 +147,12 @@ void um_read_sensors(void *args)
                 {
                     float ow_temp;
                     um_onewire_read_temperature(sensor->address, &ow_temp);
+#if UM_FEATURE_ENABLED(MQTT)
                     payload.capability = UM_CAP_ONEWIRE;
                     payload.serial = sensor->serial;
                     payload.value = ow_temp;
                     um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_ONEWIRE, payload, 0, 0);
+#endif
                     ESP_LOGI(TAG, "[um_read_sensors][onewire] sn:%s, temp: %.2f", sensor->serial, ow_temp);
                 }
             }
@@ -158,37 +161,45 @@ void um_read_sensors(void *args)
 #if UM_FEATURE_ENABLED(NTC1)
         float temp1;
         um_ntc_read_temperature(UM_NTC_CHANNEL_1, &temp1);
-        ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc1, temp: %.2f", temp1);
+#if UM_FEATURE_ENABLED(MQTT)
         payload.capability = UM_CAP_NTC1;
         payload.serial = NULL;
         payload.value = temp1;
         um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
 #endif
+        ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc1, temp: %.2f", temp1);
+#endif
 #if UM_FEATURE_ENABLED(NTC2)
         float temp2;
         um_ntc_read_temperature(UM_NTC_CHANNEL_2, &temp2);
+#if UM_FEATURE_ENABLED(MQTT)
         payload.capability = UM_CAP_NTC2;
         payload.serial = NULL;
         payload.value = temp2;
         um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
+#endif
         ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc2, temp: %.2f", temp2);
 #endif
 #if UM_FEATURE_ENABLED(AI1)
         int adc1;
         um_adc_read_raw(UM_ADC_CHANNEL_1, &adc1);
+#if UM_FEATURE_ENABLED(MQTT)
         payload.capability = UM_CAP_AI1;
         payload.serial = NULL;
         payload.value = adc1;
         um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
+#endif
         ESP_LOGI(TAG, "[um_read_sensors][adc] adc1, val: %d", adc1);
 #endif
 #if UM_FEATURE_ENABLED(AI2)
         int adc2;
         um_adc_read_raw(UM_ADC_CHANNEL_2, &adc2);
+#if UM_FEATURE_ENABLED(MQTT)
         payload.capability = UM_CAP_AI2;
         payload.serial = NULL;
         payload.value = adc2;
         um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
+#endif
         ESP_LOGI(TAG, "[um_read_sensors][adc] adc2, val: %d", adc2);
 #endif
         vTaskDelay(60000 / portTICK_PERIOD_MS);
@@ -196,11 +207,18 @@ void um_read_sensors(void *args)
     vTaskDelete(NULL);
 }
 
+static IRAM_ATTR shutdown_handler()
+{
+    ESP_LOGI(TAG, "Shutdown handler called. Performing cleanup...");
+}
+
 void app_main(void)
 {
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Firmware Version: %s", CONFIG_UMNI_FW_VERSION);
     ESP_LOGI(TAG, "========================================");
+
+    esp_register_shutdown_handler(shutdown_handler);
 
     um_capabilities_init();
     char *cpb = um_capabilities_get_json_object();

@@ -7,6 +7,9 @@ dependencies:
   um_capabilities:
     path: ../um_capabilities
     version: "*"
+  um_mqtt:
+    path: ../um_mqtt
+    version: "*"
   um_events:
     path: ../um_events
     version: "*"

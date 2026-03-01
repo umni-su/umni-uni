@@ -539,7 +539,7 @@ esp_err_t um_webserver_start(void)
         return ret;
     }
 
-    um_webserver_register_get("/api/test", um_webserver_on_off_handler);
+    um_webserver_register_get("/api/switch", um_webserver_on_off_handler);
     um_webserver_register_get("/api/conf", get_config_data);
     um_webserver_register_post("/api/login", um_webserver_login_handler);
     um_webserver_register_post("/api/settings", um_webserver_save_settings_handler);

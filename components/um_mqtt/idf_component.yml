@@ -7,6 +7,8 @@ dependencies:
     path: ../um_events
   um_nvs:
     path: ../um_nvs
+  um_helpers:
+    path: ../um_helpers
 description: UMNI MQTT component
 license: MIT
 version: 1.0.0

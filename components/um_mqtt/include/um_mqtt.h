@@ -12,8 +12,8 @@
 #define UM_MQTT_RECONNECT_CHECK_INTERVAL 30000 // 30 секунд
 
 // Базовые топики
-#define UM_MQTT_TOPIC_PREFIX_MANAGE "manage/"
-#define UM_MQTT_TOPIC_PREFIX_DEVICE "device/"
+#define UM_MQTT_TOPIC_PREFIX_DEVICE "device/" // без / в начале
+#define UM_MQTT_TOPIC_PREFIX_MANAGE "/manage/"
 #define UM_MQTT_TOPIC_REGISTER "/register"
 #define UM_MQTT_TOPIC_STATUS "/status"
 #define UM_MQTT_TOPIC_LWT "/lwt"
@@ -28,6 +28,7 @@
 #define UM_MQTT_TOPIC_OUTPUTS "do"
 #define UM_MQTT_TOPIC_ONEWIRE "onewire"
 #define UM_MQTT_TOPIC_OPENTHERM "ot"
+#define UM_MQTT_TOPIC_OPENCOLLECTORS "oc"
 
 // Структура статуса подключения
 typedef struct
