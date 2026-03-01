@@ -10,6 +10,7 @@ dependencies:
     path: ../um_mqtt
     version: "*"
   sazanof/rf433_receiver: 
+    require: public
     version: "*"
 description: UMNI rf433 component
 license: MIT

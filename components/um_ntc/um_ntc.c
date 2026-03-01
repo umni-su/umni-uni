@@ -1,4 +1,5 @@
 #include "um_ntc.h"
+#include "um_ntc_config.h"
 #include "esp_log.h"
 
 static const char *TAG = "um_ntc";
@@ -167,6 +168,7 @@ esp_err_t um_ntc_init(adc_oneshot_unit_handle_t *adc_handle)
     s_channel2.ntc_dev = NULL;
 #endif
 
+    um_ntc_config_load();
     s_system_initialized = true;
     ESP_LOGI(TAG, "NTC system initialized with shared ADC handle");
     return ESP_OK;

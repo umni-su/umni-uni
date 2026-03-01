@@ -1,4 +1,5 @@
 #include "um_adc.h"
+#include "um_adc_config.h"
 #include "esp_log.h"
 
 static const char *TAG = "um_adc";
@@ -206,7 +207,7 @@ esp_err_t um_adc_init(adc_oneshot_unit_handle_t *adc_handle)
     s_channel2.state = UM_ADC_STATE_DISABLED;
     s_channel2.last_raw_value = 0;
 #endif
-
+    um_adc_config_load();
     s_system_initialized = true;
     ESP_LOGI(TAG, "ADC system initialized with shared ADC handle");
     return ESP_OK;

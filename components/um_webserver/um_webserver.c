@@ -13,6 +13,19 @@
 
 #if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
 #include "um_dio.h"
+#include "um_dio_config.h"
+#endif
+
+#if UM_FEATURE_ENABLED(RF433)
+#include "um_rf433_config.h"
+#endif
+
+#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+#include "um_adc_config.h"
+#endif
+
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
+#include "um_ntc_config.h"
 #endif
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
@@ -318,6 +331,38 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     {
 #if UM_FEATURE_ENABLED(ONEWIRE)
         config_str = um_onewire_config_read();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else if (strcmp(section, "dio") == 0)
+    {
+#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
+        config_str = um_dio_config_read();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else if (strcmp(section, "rf433") == 0)
+    {
+#if UM_FEATURE_ENABLED(RF433)
+        config_str = um_rf433_config_read();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else if (strcmp(section, "adc") == 0)
+    {
+#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+        config_str = um_adc_config_read();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else if (strcmp(section, "ntc") == 0)
+    {
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
+        config_str = um_ntc_config_read();
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif

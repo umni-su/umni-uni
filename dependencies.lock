@@ -283,6 +283,12 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.0.0
+  um_adc:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_adc
+      type: local
+    version: 1.0.0
   um_capabilities:
     dependencies: []
     source:
@@ -313,6 +319,12 @@ dependencies:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_mqtt
       type: local
     version: 1.0.0
+  um_ntc:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_ntc
+      type: local
+    version: 1.0.0
   um_nvs:
     dependencies: []
     source:
@@ -323,6 +335,12 @@ dependencies:
     dependencies: []
     source:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_onewire
+      type: local
+    version: 1.0.0
+  um_rf433:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_rf433
       type: local
     version: 1.0.0
   um_storage:
@@ -341,14 +359,17 @@ direct_dependencies:
 - idf
 - sazanof/opentherm
 - sazanof/rf433_receiver
+- um_adc
 - um_capabilities
 - um_dio
 - um_events
 - um_helpers
 - um_mqtt
+- um_ntc
 - um_nvs
 - um_onewire
+- um_rf433
 - um_storage
-manifest_hash: 51eba71145043c811afcb095e62144a876fdb0cbe39ece65bae1bf414b3f3f9b
+manifest_hash: b5c391e09c2a5b8f9eb0594bcbcb420fd4ea108b9f2ab77429f121dc7e3282e7
 target: esp32
 version: 2.0.0

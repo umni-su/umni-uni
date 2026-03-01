@@ -16,6 +16,27 @@ static QueueHandle_t esp_rf433_queue = NULL;
 
 static bool search = false;
 
+#define SEARCH_TIMEOUT 15000
+
+void um_rf433_search_handle(void *arg)
+{
+    // алгоритм поиска
+    // установка режима поиска
+
+    // создание задачи на определенный интервал времени поиска
+    // возможно в процессе проверять есть датчик в конфигурации или нет
+    // запись в структуру сенсоров поиска срабатываемые датчики
+    // по окончанию задачи сбрасывать режим поиска
+    search = true;
+    vTaskDelay(pdMS_TO_TICKS(SEARCH_TIMEOUT));
+
+    um_rf433_clear_search();
+
+    search = false;
+
+    vTaskDelete(NULL);
+}
+
 void um_rf433_receiver_task(void *pvParameter)
 {
     uint8_t prot_num = 0;
@@ -83,7 +104,7 @@ void um_rf433_receiver_task(void *pvParameter)
                 ESP_LOGI(TAG, "Time diff: %.1f ms, Packet #%d",
                          time_diff_ms, dev->packet_count);
 
-                                // Отправка события в систему
+                // Отправка события в систему
                 /*
                 um_ev_message_rf433 message = {
                     .alarm = dev->alarm,
@@ -209,5 +230,7 @@ void um_rf_433_init()
 
 void um_rf433_activale_search()
 {
-    search = true;
+    if (search)
+        return;
+    xTaskCreatePinnedToCore(um_rf433_search_handle, "rf433_search", configMINIMAL_STACK_SIZE * 2, NULL, 5, NULL, 1);
 }

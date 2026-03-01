@@ -9,8 +9,18 @@ dependencies:
     version: "*"
   um_onewire:
     path: ../um_onewire
+    version: "*"
   um_dio:
     path: ../um_dio
+    version: "*"
+  um_adc:
+    path: ../um_adc
+    version: "*"
+  um_ntc:
+    path: ../um_ntc
+    version: "*"
+  um_rf433:
+    path: ../um_rf433
     version: "*"
 description: UMNI webserver component
 license: MIT
