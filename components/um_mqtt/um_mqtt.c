@@ -494,6 +494,11 @@ void um_mqtt_init(const char *client_id)
     log_free_heap(__FUNCTION__);
 }
 
+bool um_mqtt_connected()
+{
+    return mqtt_state.connected;
+}
+
 void um_mqtt_deinit(void)
 {
     if (!mqtt_state.initialized)

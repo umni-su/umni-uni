@@ -58,6 +58,11 @@ typedef void (*um_mqtt_data_callback_t)(const char *topic, const char *data, int
 void um_mqtt_init(const char *client_id);
 
 /**
+ * @brief Возвращает статус соединения в виде bool
+ */
+bool um_mqtt_connected();
+
+/**
  * @brief Деинициализация MQTT клиента
  */
 void um_mqtt_deinit(void);

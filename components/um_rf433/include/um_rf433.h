@@ -26,6 +26,8 @@ extern "C"
 
     void um_rf_433_init();
 
+    void um_rf433_activale_search();
+
     void um_rf433_clear_search();
 
     short int um_rf433_get_array_length(um_rf_devices_t *devices, int max);

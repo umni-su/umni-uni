@@ -151,7 +151,8 @@ void um_read_sensors(void *args)
                     payload.capability = UM_CAP_ONEWIRE;
                     payload.serial = sensor->serial;
                     payload.value = ow_temp;
-                    um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_ONEWIRE, payload, 0, 0);
+                    if (um_mqtt_connected())
+                        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_ONEWIRE, payload, 0, 0);
 #endif
                     ESP_LOGI(TAG, "[um_read_sensors][onewire] sn:%s, temp: %.2f", sensor->serial, ow_temp);
                 }
@@ -165,7 +166,8 @@ void um_read_sensors(void *args)
         payload.capability = UM_CAP_NTC1;
         payload.serial = NULL;
         payload.value = temp1;
-        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
+        if (um_mqtt_connected())
+            um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
 #endif
         ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc1, temp: %.2f", temp1);
 #endif
@@ -176,7 +178,8 @@ void um_read_sensors(void *args)
         payload.capability = UM_CAP_NTC2;
         payload.serial = NULL;
         payload.value = temp2;
-        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
+        if (um_mqtt_connected())
+            um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_NTC, payload, 0, 0);
 #endif
         ESP_LOGI(TAG, "[um_read_sensors][ntc] ntc2, temp: %.2f", temp2);
 #endif
@@ -187,7 +190,8 @@ void um_read_sensors(void *args)
         payload.capability = UM_CAP_AI1;
         payload.serial = NULL;
         payload.value = adc1;
-        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
+        if (um_mqtt_connected())
+            um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
 #endif
         ESP_LOGI(TAG, "[um_read_sensors][adc] adc1, val: %d", adc1);
 #endif
@@ -198,7 +202,8 @@ void um_read_sensors(void *args)
         payload.capability = UM_CAP_AI2;
         payload.serial = NULL;
         payload.value = adc2;
-        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
+        if (um_mqtt_connected())
+            um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_AI, payload, 0, 0);
 #endif
         ESP_LOGI(TAG, "[um_read_sensors][adc] adc2, val: %d", adc2);
 #endif
@@ -207,7 +212,7 @@ void um_read_sensors(void *args)
     vTaskDelete(NULL);
 }
 
-static IRAM_ATTR shutdown_handler()
+void shutdown_handler()
 {
     ESP_LOGI(TAG, "Shutdown handler called. Performing cleanup...");
 }

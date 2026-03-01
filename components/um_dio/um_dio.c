@@ -5,6 +5,7 @@
  */
 
 #include "um_dio.h"
+#include "um_dio_config.h"
 #include "um_nvs.h"
 #include "pcf8574.h"
 #include "esp_log.h"
@@ -43,7 +44,7 @@ static QueueHandle_t input_queue = NULL;
 #define INT_PIN CONFIG_UM_CFG_PCF_INT
 
 /* Input mapping from config index to port index */
-static const uint8_t input_index_map[] = {
+const uint8_t input_index_map[] = {
     0, // Not used (index 0)
     CONFIG_UM_CFG_INP1_INDEX,
     CONFIG_UM_CFG_INP2_INDEX,
@@ -54,7 +55,7 @@ static const uint8_t input_index_map[] = {
 };
 
 /* Output mapping from config index to port index */
-static const uint8_t output_index_map[] = {
+const uint8_t output_index_map[] = {
     0, // Not used (index 0)
     CONFIG_UM_CFG_OUT1_INDEX,
     CONFIG_UM_CFG_OUT2_INDEX,
@@ -334,6 +335,16 @@ esp_err_t um_dio_init(void)
         ESP_LOGE(TAG, "Input initialization failed");
         return res;
     }
+
+    esp_err_t err = um_dio_config_load();
+    if (err != ESP_OK)
+    {
+        ESP_LOGW("APP", "Failed to load DIO config, creating default one");
+        um_dio_config_create_default();
+    }
+    char *cdio = um_dio_config_read();
+    ESP_LOGI(TAG, "Config file is: %s", cdio);
+    free(cdio);
 
     ESP_LOGI(TAG, "DIO module initialized successfully");
     return ESP_OK;
