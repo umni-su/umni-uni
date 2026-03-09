@@ -370,6 +370,6 @@ direct_dependencies:
 - um_onewire
 - um_rf433
 - um_storage
-manifest_hash: b5c391e09c2a5b8f9eb0594bcbcb420fd4ea108b9f2ab77429f121dc7e3282e7
+manifest_hash: 00cc29da9cf8cfce9457d1f9c86c99eeb148abc996ca1323d976e4a35c4f1dbb
 target: esp32
 version: 2.0.0

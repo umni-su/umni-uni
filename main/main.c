@@ -8,6 +8,10 @@
 #include "um_nvs.h"
 #include "um_capabilities.h"
 
+#if UM_FEATURE_ENABLED(WEBHOOKS)
+#include "um_webhooks.h"
+#endif
+
 #if UM_FEATURE_ENABLED(ETHERNET)
 #include "um_ethernet.h"
 #endif
@@ -153,6 +157,20 @@ void um_read_sensors(void *args)
                     payload.value = ow_temp;
                     if (um_mqtt_connected())
                         um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_ONEWIRE, payload, 0, 0);
+#endif
+#if UM_FEATURE_ENABLED(WEBHOOKS)
+                    char *string_data = NULL;
+                    asprintf(
+                        &string_data,
+                        "{\"cap\":\"%s\", \"serial\":\"%s\", \"value\": \"%.2f\"}",
+                        um_capabilities_get_name(UM_CAP_ONEWIRE),
+                        sensor->serial,
+                        sensor->temperature);
+                    if (string_data != NULL)
+                    {
+                        um_webhooks_post_string_timeout(string_data, 2000);
+                    }
+                    free(string_data);
 #endif
                     ESP_LOGI(TAG, "[um_read_sensors][onewire] sn:%s, temp: %.2f", sensor->serial, ow_temp);
                 }

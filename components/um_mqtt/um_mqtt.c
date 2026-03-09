@@ -231,7 +231,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         if (get_lwt_topic(lwt_topic, sizeof(lwt_topic)))
         {
             esp_mqtt_client_publish(mqtt_state.client, lwt_topic,
-                                    "online", 6, 1, 1);
+                                    "{\"state\":\"online\"}", 19, 1, 1);
         }
 
         // Создаем задачу регистрации
@@ -293,7 +293,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         // Обработка ping
         if (strstr(topic, UM_MQTT_TOPIC_PING) != NULL)
         {
-            um_mqtt_publish(UM_MQTT_TOPIC_PONG, "pong", 0, 0);
+            um_mqtt_publish(UM_MQTT_TOPIC_PONG, "{\"ping\":\"pong\"}", 0, 0);
         }
         else if (strstr(topic, UM_MQTT_TOPIC_PREFIX_MANAGE UM_MQTT_TOPIC_OUTPUTS) != NULL)
         {
@@ -457,7 +457,7 @@ void um_mqtt_init(const char *client_id)
             .client_id = mqtt_state.client_id,
             .authentication.password = mqtt_state.password,
         },
-        .session = {.keepalive = 30, .disable_clean_session = 0, .last_will = {.topic = lwt_topic, .msg = "offline", .msg_len = 7, .qos = 1, .retain = 1}},
+        .session = {.keepalive = 30, .disable_clean_session = 0, .last_will = {.topic = lwt_topic, .msg = "{\"state\":\"offline\"}", .msg_len = 20, .qos = 1, .retain = 1}},
         .network = {
             .reconnect_timeout_ms = 10000,
             .timeout_ms = 10000,
@@ -749,68 +749,53 @@ esp_err_t um_mqtt_unsubscribe(const char *topic)
 
 esp_err_t um_mqtt_register_device(const char *device_type)
 {
-    cJSON *systeminfo = cJSON_CreateObject();
-    cJSON *networks = cJSON_CreateArray();
-    cJSON *heap = cJSON_CreateObject();
+    cJSON *systeminfo = NULL;
 
-    char *hostname = NULL;
-    um_nvs_get_hostname(&hostname);
-    cJSON_AddStringToObject(systeminfo, "hostname", hostname);
-
-    char *cap_json = um_capabilities_get_json_array();
-    cJSON *capabilities = cJSON_Parse(cap_json);
-    if (cJSON_IsArray(capabilities))
-    {
-        cJSON_AddItemToObject(systeminfo, "capabilities", capabilities);
-    }
-
-    um_network_interface_info_t interfaces[3];
-    int count = um_helpers_get_network_interfaces(interfaces, 3);
-
-    for (int i = 0; i < count; i++)
-    {
-        cJSON *network_item = cJSON_CreateObject();
-        cJSON_AddStringToObject(network_item, "name", interfaces[i].interface_name);
-        cJSON_AddStringToObject(network_item, "ip", interfaces[i].ip_address);
-        cJSON_AddStringToObject(network_item, "mask", interfaces[i].netmask);
-        cJSON_AddStringToObject(network_item, "gw", interfaces[i].gateway);
-        cJSON_AddBoolToObject(network_item, "active", interfaces[i].is_active);
-        cJSON_AddItemToArray(networks, network_item);
-    }
-
-    // Получаем информацию о памяти
-    um_memory_info_t mem_info;
-    if (um_helpers_get_memory_info(&mem_info) == 0)
-    {
-        cJSON_AddNumberToObject(heap, "total", mem_info.total_heap);
-        cJSON_AddNumberToObject(heap, "free", mem_info.free_heap);
-        cJSON_AddNumberToObject(heap, "min", mem_info.free_heap);
-    }
-
-    cJSON_AddItemToObject(systeminfo, "networks", networks);
-    cJSON_AddItemToObject(systeminfo, "heap", heap);
-
-    char *response = cJSON_PrintUnformatted(systeminfo);
-
-    if (!mqtt_state.enabled || !mqtt_state.connected || !mqtt_state.client)
+    // 1. Получаем systeminfo
+    esp_err_t ret = um_helperts_get_systeminfo(&systeminfo);
+    if (ret != ESP_OK || !systeminfo)
     {
         return ESP_FAIL;
     }
 
+    // 2. Добавляем device_type
+    cJSON_AddStringToObject(systeminfo, "device_type", device_type);
+
+    // 3. Конвертируем в строку
+    char *response = cJSON_PrintUnformatted(systeminfo);
+    if (!response)
+    {
+        cJSON_Delete(systeminfo);
+        return ESP_ERR_NO_MEM;
+    }
+
+    // 4. Проверяем MQTT состояние
+    if (!mqtt_state.enabled || !mqtt_state.connected || !mqtt_state.client)
+    {
+        cJSON_Delete(systeminfo);
+        free(response);
+        return ESP_FAIL;
+    }
+
+    // 5. Формируем топик
     char full_topic[128];
     um_mqtt_get_device_topic(UM_MQTT_TOPIC_REGISTER, full_topic, sizeof(full_topic));
 
+    // 6. Публикуем
     int msg_id = esp_mqtt_client_publish(mqtt_state.client, full_topic,
                                          response, 0, 1, 1);
+
+    // 7. Освобождаем ресурсы (В ПРАВИЛЬНОМ ПОРЯДКЕ)
+    free(response);
+    cJSON_Delete(systeminfo);
+
+    // 8. Проверяем результат публикации
     if (msg_id < 0)
     {
         ESP_LOGE(TAG, "Failed to register device");
         return ESP_FAIL;
     }
-    free(hostname);
-    free(cap_json);
-    cJSON_Delete(systeminfo);
-    free(response);
+
     log_free_heap(__FUNCTION__);
     return ESP_OK;
 }

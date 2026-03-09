@@ -4,7 +4,7 @@
 
 #include "base_config.h"
 #include "um_nvs.h"
-
+#include "um_helpers.h"
 #include "um_webserver.h"
 
 #if UM_FEATURE_ENABLED(ONEWIRE)
@@ -299,6 +299,11 @@ static esp_err_t um_webserver_base_post_handler(
     return http_ret;
 }
 
+static esp_err_t get_systeminfo(httpd_req_t *req, cJSON **data)
+{
+    return um_helperts_get_systeminfo(data);
+}
+
 static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
 {
     char section[32] = {0};
@@ -390,48 +395,25 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     return ESP_OK;
 }
 
-static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON **data)
+static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON *input, cJSON **output)
 {
-    char mode[32] = {0};
-    char level[8] = {0};
-    char index[8] = {0};
-
-    // 1. Получаем параметры (всегда одинаково)
-    size_t query_len = httpd_req_get_url_query_len(req);
-    if (query_len > 0)
-    {
-        char *query = malloc(query_len + 1);
-        if (!query)
-            return ESP_ERR_NO_MEM;
-
-        if (httpd_req_get_url_query_str(req, query, query_len + 1) == ESP_OK)
-        {
-            httpd_query_key_value(query, "mode", mode, sizeof(mode));
-            httpd_query_key_value(query, "level", level, sizeof(level));
-            httpd_query_key_value(query, "index", index, sizeof(index));
-
-            ESP_LOGI(REST_TAG, "Raw values: mode='%s', level='%s', index='%s'",
-                     mode, level, index);
-        }
-        free(query);
-    }
+    cJSON *mode = cJSON_GetObjectItem(input, "mode");
+    cJSON *level = cJSON_GetObjectItem(input, "level");
+    cJSON *index = cJSON_GetObjectItem(input, "index");
 
     // 2. Проверяем обязательные параметры
-    if (strlen(mode) == 0)
+    if (cJSON_IsString(mode) && strlen(mode->valuestring) == 0)
     {
         return ESP_ERR_INVALID_ARG;
     }
 
-    // 3. Твоя логика получения данных
-    char *config_str = NULL;
-
-    if (strcmp(mode, "outputs") == 0)
+    if (strcmp(mode->valuestring, "outputs") == 0)
     {
 #if UM_FEATURE_ENABLED(OUTPUTS)
-        if (strlen(level) > 0 && strlen(index) > 0)
+        if (cJSON_IsNumber(level) && cJSON_IsNumber(index) && index->valueint >= 0)
         {
-            int idx = atoi(index);
-            int lvl = atoi(level);
+            int idx = index->valueint;
+            int lvl = level->valueint;
 
             ESP_LOGI(REST_TAG, "Setting output %d to %d", idx, lvl);
 
@@ -452,21 +434,7 @@ static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON **data)
         return ESP_ERR_NOT_FOUND;
     }
 
-    if (!config_str)
-    {
-        return ESP_FAIL;
-    }
-
-    // 4. Парсим JSON (всегда одинаково для строк)
-    cJSON *json = cJSON_Parse(config_str);
-    free(config_str);
-
-    if (!json)
-    {
-        return ESP_FAIL;
-    }
-
-    *data = json;
+    *output = NULL;
     return ESP_OK;
 }
 
@@ -513,7 +481,6 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Проверка (в реальности - из NVS)
     if (strcmp(setting->valuestring, "mqtt") == 0)
     {
         // {values: {en: bool, host: string, port: int, user: ?string, password: ?string}}
@@ -540,8 +507,25 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
         *output = data;
         return ESP_OK;
     }
+    else if (strcmp(setting->valuestring, "webhook") == 0)
+    {
+        cJSON *whk_en = cJSON_GetObjectItem(values, "en");
+        cJSON *whk_url = cJSON_GetObjectItem(values, "url");
+        if (cJSON_IsBool(whk_en))
+        {
+            um_nvs_set_webhooks_enabled(cJSON_IsTrue(whk_en));
+        }
+        if (cJSON_IsString(whk_url))
+        {
+            um_nvs_set_webhooks_url(whk_url->valuestring);
+        }
+    }
+    else
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
 
-    return ESP_ERR_NOT_FOUND; // Неверные учетные данные
+    return ESP_OK;
 }
 
 /**
@@ -584,8 +568,9 @@ esp_err_t um_webserver_start(void)
         return ret;
     }
 
+    um_webserver_register_get("/api/systeminfo", get_systeminfo);
     um_webserver_register_get("/api/conf", get_config_data);
-    um_webserver_register_get("/api/switch", um_webserver_on_off_handler);
+    um_webserver_register_post("/api/switch", um_webserver_on_off_handler);
     um_webserver_register_post("/api/login", um_webserver_login_handler);
     um_webserver_register_post("/api/settings", um_webserver_save_settings_handler);
 

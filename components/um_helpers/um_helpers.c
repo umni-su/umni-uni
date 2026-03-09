@@ -5,6 +5,8 @@
 #include "esp_heap_caps.h"
 #include "lwip/ip_addr.h"
 #include "um_helpers.h"
+#include "um_nvs.h"
+#include "um_capabilities.h"
 
 #define DEVICE_NAME_PREFIX "umni-"
 #define DEVICE_NAME_MAX_LEN 32
@@ -20,7 +22,7 @@ int um_helpers_get_network_interfaces(um_network_interface_info_t *interfaces, i
     }
 
     int count = 0;
-    esp_netif_t *netif = esp_netif_next(NULL);
+    esp_netif_t *netif = esp_netif_next_unsafe(NULL);
 
     while (netif != NULL && count < max_count)
     {
@@ -60,7 +62,7 @@ int um_helpers_get_network_interfaces(um_network_interface_info_t *interfaces, i
 
             count++;
         }
-        netif = esp_netif_next(netif);
+        netif = esp_netif_next_unsafe(netif);
     }
 
     return count;
@@ -150,4 +152,74 @@ char *um_helpers_generate_device_name_full_mac(const char *prefix, char *buffer,
              default_prefix, mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     return buffer;
+}
+
+esp_err_t um_helperts_get_systeminfo(cJSON **data)
+{
+    cJSON *systeminfo = cJSON_CreateObject();
+    if (!systeminfo)
+        return ESP_ERR_NO_MEM;
+    cJSON *networks = cJSON_CreateArray();
+    cJSON *heap = cJSON_CreateObject();
+
+    char *hostname = NULL;
+    if (um_nvs_get_hostname(&hostname) == ESP_OK && hostname)
+    {
+        cJSON_AddStringToObject(systeminfo, "hostname", hostname);
+        free(hostname);
+    }
+    else
+    {
+        cJSON_AddStringToObject(systeminfo, "hostname", "unknown");
+    }
+
+    char *cap_json = um_capabilities_get_json_array();
+    if (cap_json)
+    {
+        cJSON *capabilities = cJSON_Parse(cap_json);
+        if (capabilities)
+        {
+            if (cJSON_IsArray(capabilities))
+            {
+                // capabilities переходит под управление systeminfo
+                cJSON_AddItemToObject(systeminfo, "capabilities", capabilities);
+            }
+            else
+            {
+                // Если не массив - удаляем
+                cJSON_Delete(capabilities);
+            }
+        }
+        free(cap_json);
+    }
+
+    um_network_interface_info_t interfaces[3];
+    int count = um_helpers_get_network_interfaces(interfaces, 3);
+
+    for (int i = 0; i < count; i++)
+    {
+        cJSON *network_item = cJSON_CreateObject();
+        cJSON_AddStringToObject(network_item, "name", interfaces[i].interface_name);
+        cJSON_AddStringToObject(network_item, "ip", interfaces[i].ip_address);
+        cJSON_AddStringToObject(network_item, "mask", interfaces[i].netmask);
+        cJSON_AddStringToObject(network_item, "gw", interfaces[i].gateway);
+        cJSON_AddBoolToObject(network_item, "active", interfaces[i].is_active);
+        cJSON_AddItemToArray(networks, network_item);
+    }
+
+    // Получаем информацию о памяти
+    um_memory_info_t mem_info;
+    if (um_helpers_get_memory_info(&mem_info) == 0)
+    {
+        cJSON_AddNumberToObject(heap, "total", mem_info.total_heap);
+        cJSON_AddNumberToObject(heap, "free", mem_info.free_heap);
+        cJSON_AddNumberToObject(heap, "min", mem_info.min_free_heap);
+    }
+
+    cJSON_AddItemToObject(systeminfo, "networks", networks);
+    cJSON_AddItemToObject(systeminfo, "heap", heap);
+
+    *data = systeminfo;
+
+    return ESP_OK;
 }
