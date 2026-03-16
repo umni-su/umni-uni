@@ -82,8 +82,14 @@ menu "UMNI Configuration"
             help
                 Enable 12V alarm input
 
-        config UM_FEATURE_ADC
+        config UM_FEATURE_AI
             bool "Enable ADC"
+            default n
+            help
+                Enable Analog-Digital Converter
+
+        config UM_FEATURE_NTC
+            bool "Enable NTC"
             default n
             help
                 Enable Analog-Digital Converter

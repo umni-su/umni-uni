@@ -1,6 +1,7 @@
 #include <string.h>
 #include "esp_mac.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "esp_netif.h"
 #include "esp_heap_caps.h"
 #include "lwip/ip_addr.h"
@@ -31,6 +32,7 @@ int um_helpers_get_network_interfaces(um_network_interface_info_t *interfaces, i
         {
             um_network_interface_info_t *info = &interfaces[count];
             const char *ifkey = esp_netif_get_ifkey(netif);
+            const char *desc = esp_netif_get_desc(netif);
 
             // Красиво именуем интерфейс для вывода
             if (strstr(ifkey, "STA"))
@@ -51,10 +53,43 @@ int um_helpers_get_network_interfaces(um_network_interface_info_t *interfaces, i
                 strncpy(info->interface_name, ifkey, sizeof(info->interface_name));
             }
 
+            esp_err_t mac_ret = ESP_FAIL;
+            uint8_t mac[6] = {0};
+
+            // Пытаемся получить MAC по типу интерфейса
+            if (strstr(ifkey, "STA") || strstr(ifkey, "AP"))
+            {
+                // Для WiFi интерфейсов
+                if (strstr(ifkey, "STA"))
+                {
+                    mac_ret = esp_read_mac(mac, ESP_MAC_WIFI_STA);
+                }
+                else if (strstr(ifkey, "AP"))
+                {
+                    mac_ret = esp_read_mac(mac, ESP_MAC_WIFI_SOFTAP);
+                }
+            }
+            else if (strstr(ifkey, "ETH") || (desc && strstr(desc, "eth")))
+            {
+                // Для Ethernet интерфейсов
+                mac_ret = esp_read_mac(mac, ESP_MAC_ETH);
+            }
+
+            // Если не удалось получить MAC по типу, пробуем получить из netif
+            if (mac_ret != ESP_OK)
+            {
+                // В ESP-IDF 5.5.2 можно попробовать получить MAC напрямую из netif
+                // Это зависит от конкретной реализации интерфейса
+                esp_netif_get_mac(netif, mac); // Некоторые версии имеют такую функцию
+            }
+
             // Заполняем сетевые параметры
             snprintf(info->ip_address, sizeof(info->ip_address), IPSTR, IP2STR(&ip_info.ip));
             snprintf(info->netmask, sizeof(info->netmask), IPSTR, IP2STR(&ip_info.netmask));
             snprintf(info->gateway, sizeof(info->gateway), IPSTR, IP2STR(&ip_info.gw));
+            snprintf(info->mac_address, sizeof(info->mac_address),
+                     "%02x:%02x:%02x:%02x:%02x:%02x",
+                     mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
             // Интерфейс считаем активным, если поднят линк и получен IP
             // Дополнительно можно проверить esp_netif_is_netif_up(netif)
@@ -173,6 +208,10 @@ esp_err_t um_helperts_get_systeminfo(cJSON **data)
         cJSON_AddStringToObject(systeminfo, "hostname", "unknown");
     }
 
+    cJSON_AddStringToObject(systeminfo, "fw_ver", CONFIG_UMNI_FW_VERSION);
+    cJSON_AddNumberToObject(systeminfo, "uptime", esp_timer_get_time());
+    cJSON_AddNumberToObject(systeminfo, "reset_reason", (int)esp_reset_reason());
+
     char *cap_json = um_capabilities_get_json_array();
     if (cap_json)
     {
@@ -200,6 +239,7 @@ esp_err_t um_helperts_get_systeminfo(cJSON **data)
     {
         cJSON *network_item = cJSON_CreateObject();
         cJSON_AddStringToObject(network_item, "name", interfaces[i].interface_name);
+        cJSON_AddStringToObject(network_item, "mac", interfaces[i].mac_address);
         cJSON_AddStringToObject(network_item, "ip", interfaces[i].ip_address);
         cJSON_AddStringToObject(network_item, "mask", interfaces[i].netmask);
         cJSON_AddStringToObject(network_item, "gw", interfaces[i].gateway);

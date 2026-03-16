@@ -358,3 +358,54 @@ uint8_t um_dio_config_get_output_port(uint8_t config_index)
     const um_dio_config_item_t *output = um_dio_config_get_output(config_index);
     return output ? output->port_index : 0;
 }
+
+char *um_dio_config_get_inputs_json(void)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *inputs_array = cJSON_CreateArray();
+
+    // Добавляем все входы
+    for (int i = 0; i < dio_config.input_count; i++)
+    {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddNumberToObject(item, "index", dio_config.inputs[i].config_index);
+        cJSON_AddNumberToObject(item, "port", dio_config.inputs[i].port_index);
+        cJSON_AddStringToObject(item, "label", dio_config.inputs[i].label);
+        cJSON_AddBoolToObject(item, "active", dio_config.inputs[i].active);
+        cJSON_AddItemToArray(inputs_array, item);
+    }
+
+    cJSON_AddItemToObject(root, "inputs", inputs_array);
+    cJSON_AddNumberToObject(root, "count", dio_config.input_count);
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    return json_str;
+}
+
+char *um_dio_config_get_outputs_json(void)
+{
+    cJSON *root = cJSON_CreateObject();
+    cJSON *outputs_array = cJSON_CreateArray();
+
+    // Добавляем все выходы
+    for (int i = 0; i < dio_config.output_count; i++)
+    {
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddNumberToObject(item, "index", dio_config.outputs[i].config_index);
+        cJSON_AddNumberToObject(item, "port", dio_config.outputs[i].port_index);
+        cJSON_AddStringToObject(item, "label", dio_config.outputs[i].label);
+        cJSON_AddBoolToObject(item, "active", dio_config.outputs[i].active);
+        cJSON_AddNumberToObject(item, "default_state", dio_config.outputs[i].default_state);
+        cJSON_AddItemToArray(outputs_array, item);
+    }
+
+    cJSON_AddItemToObject(root, "outputs", outputs_array);
+    cJSON_AddNumberToObject(root, "count", dio_config.output_count);
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+
+    return json_str;
+}

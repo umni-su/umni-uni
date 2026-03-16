@@ -35,6 +35,7 @@ extern "C"
 
         // Analog inputs
         UM_CAP_ADC,
+        UM_CAP_NTC,
         UM_CAP_NTC1,
         UM_CAP_NTC2,
         UM_CAP_AI1,

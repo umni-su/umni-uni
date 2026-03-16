@@ -12,6 +12,7 @@
 #include "um_helpers.h"
 #include "um_nvs.h"
 #include "um_capabilities.h"
+#include "um_events.h"
 
 #if UM_FEATURE_ENABLED(MQTT)
 
@@ -186,32 +187,32 @@ static void free_state_resources(void)
 }
 
 // Задача периодической регистрации
-static void mqtt_register_task(void *arg)
-{
-    TickType_t last_register_time = 0;
+// static void mqtt_register_task(void *arg)
+// {
+//     TickType_t last_register_time = 0;
 
-    while (mqtt_state.initialized && mqtt_state.enabled)
-    {
-        if (!mqtt_state.connected)
-        {
-            vTaskDelay(pdMS_TO_TICKS(5000));
-            continue;
-        }
+//     while (mqtt_state.initialized && mqtt_state.enabled)
+//     {
+//         if (!mqtt_state.connected)
+//         {
+//             vTaskDelay(pdMS_TO_TICKS(5000));
+//             continue;
+//         }
 
-        TickType_t current_time = xTaskGetTickCount();
-        if ((current_time - last_register_time) > pdMS_TO_TICKS(UM_MQTT_REGISTER_TIMEOUT))
-        {
-            um_mqtt_register_device("generic");
-            last_register_time = current_time;
-            log_free_heap(__FUNCTION__);
-        }
+//         TickType_t current_time = xTaskGetTickCount();
+//         if ((current_time - last_register_time) > pdMS_TO_TICKS(UM_MQTT_REGISTER_TIMEOUT))
+//         {
+//             um_mqtt_register_device("generic");
+//             last_register_time = current_time;
+//             log_free_heap(__FUNCTION__);
+//         }
 
-        vTaskDelay(pdMS_TO_TICKS(1000));
-    }
+//         vTaskDelay(pdMS_TO_TICKS(1000));
+//     }
 
-    mqtt_state.register_task = NULL;
-    vTaskDelete(NULL);
-}
+//     mqtt_state.register_task = NULL;
+//     vTaskDelete(NULL);
+// }
 
 // Обработчик событий MQTT
 static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
@@ -231,17 +232,18 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         if (get_lwt_topic(lwt_topic, sizeof(lwt_topic)))
         {
             esp_mqtt_client_publish(mqtt_state.client, lwt_topic,
-                                    "{\"state\":\"online\"}", 19, 1, 1);
+                                    "{\"state\":\"online\"}", 18, 1, 1);
         }
 
         // Создаем задачу регистрации
-        if (mqtt_state.register_task == NULL && mqtt_state.enabled)
-        {
-            xTaskCreatePinnedToCore(mqtt_register_task, "mqtt_reg",
-                                    4096, NULL, 5,
-                                    &mqtt_state.register_task, 1);
-        }
+        // if (mqtt_state.register_task == NULL && mqtt_state.enabled)
+        // {
+        //     xTaskCreatePinnedToCore(mqtt_register_task, "mqtt_reg",
+        //                             4096, NULL, 5,
+        //                             &mqtt_state.register_task, 1);
+        // }
         um_mqtt_subscribe(UM_MQTT_TOPIC_PING, 0);
+        // um_mqtt_subscribe(UM_MQTT_TOPIC_STATUS, 0);
         um_mqtt_subscribe(UM_MQTT_TOPIC_PREFIX_MANAGE UM_MQTT_TOPIC_OUTPUTS, 0);
         um_mqtt_subscribe(UM_MQTT_TOPIC_PREFIX_MANAGE UM_MQTT_TOPIC_OPENTHERM, 0);
         um_mqtt_subscribe(UM_MQTT_TOPIC_PREFIX_MANAGE UM_MQTT_TOPIC_OPENCOLLECTORS, 0);
@@ -295,6 +297,26 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
         {
             um_mqtt_publish(UM_MQTT_TOPIC_PONG, "{\"ping\":\"pong\"}", 0, 0);
         }
+        // if (strstr(topic, UM_MQTT_TOPIC_STATUS) != NULL)
+        // {
+        //     if (strcmp(data, "dio") == 0)
+        //     {
+        //         um_event_publish(UMNI_EVENT_MQTT_CONFIG_DIO, data, sizeof(data), portMAX_DELAY);
+        //     }
+        //     else if (strcmp(data, "adc") == 0)
+        //     {
+        //         um_event_publish(UMNI_EVENT_MQTT_CONFIG_ADC, data, sizeof(data), portMAX_DELAY);
+        //     }
+        //     else if (strcmp(data, "ntc") == 0)
+        //     {
+        //         um_event_publish(UMNI_EVENT_MQTT_CONFIG_NTC, data, sizeof(data), portMAX_DELAY);
+        //     }
+        //     else if (strcmp(data, "rf433") == 0)
+        //     {
+        //         um_event_publish(UMNI_EVENT_MQTT_CONFIG_RF433, data, sizeof(data), portMAX_DELAY);
+        //     }
+        //     // um_mqtt_publish(UM_MQTT_TOPIC_PONG, "{\"ping\":\"pong\"}", 0, 0);
+        // }
         else if (strstr(topic, UM_MQTT_TOPIC_PREFIX_MANAGE UM_MQTT_TOPIC_OUTPUTS) != NULL)
         {
             ESP_LOGI(TAG, "Parse UM_MQTT_TOPIC_OUTPUTS");
@@ -457,7 +479,7 @@ void um_mqtt_init(const char *client_id)
             .client_id = mqtt_state.client_id,
             .authentication.password = mqtt_state.password,
         },
-        .session = {.keepalive = 30, .disable_clean_session = 0, .last_will = {.topic = lwt_topic, .msg = "{\"state\":\"offline\"}", .msg_len = 20, .qos = 1, .retain = 1}},
+        .session = {.keepalive = 30, .disable_clean_session = 0, .last_will = {.topic = lwt_topic, .msg = "{\"state\":\"offline\"}", .msg_len = 19, .qos = 1, .retain = 1}},
         .network = {
             .reconnect_timeout_ms = 10000,
             .timeout_ms = 10000,
@@ -603,33 +625,34 @@ esp_err_t um_mqtt_publish(const char *topic, const char *data, int qos, int reta
     return ESP_OK;
 }
 
-esp_err_t um_mqtt_publish_sensor_payload(const char *topic, um_mqtt_sensor_payload_t payload, int qos, int retain)
+esp_err_t um_mqtt_publish_sensor_payload(um_mqtt_sensor_payload_t payload, int qos, int retain)
 {
-    char full_topic[128]; // Буфер для итогового пути
-    snprintf(full_topic, sizeof(full_topic), "/sensors/%s", topic);
+    // char full_topic[128]; // Буфер для итогового пути
+    // snprintf(full_topic, sizeof(full_topic), UM_MQTT_TOPIC_SENSORS, topic);
 
     esp_err_t res = ESP_FAIL;
     cJSON *json_data = cJSON_CreateObject();
     if (json_data == NULL)
         return ESP_FAIL;
     const char *cap_str = um_capabilities_get_name(payload.capability);
-
-    cJSON_AddStringToObject(json_data, "capability", cap_str);
+    cJSON_AddStringToObject(json_data, "capability", payload.category);
     cJSON_AddNumberToObject(json_data, "value", payload.value);
     if (payload.serial == NULL)
     {
         cJSON_AddNullToObject(json_data, "serial");
+        cJSON_AddStringToObject(json_data, "identifier", cap_str);
     }
     else
     {
         cJSON_AddStringToObject(json_data, "serial", payload.serial);
+        cJSON_AddStringToObject(json_data, "identifier", payload.serial);
     }
 
     char *data = cJSON_PrintUnformatted(json_data);
 
     if (data != NULL)
     {
-        res = um_mqtt_publish(full_topic, data, qos, retain);
+        res = um_mqtt_publish(UM_MQTT_TOPIC_SENSORS, data, qos, retain);
         free(data);
     }
     cJSON_Delete(json_data);

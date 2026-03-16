@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 3.16)
 set(UMNI_DEVICE "umni-c1" CACHE STRING "Choose device")
 set_property(CACHE UMNI_DEVICE PROPERTY STRINGS umni-c1 umni-ot umni-skud)
 
+# Передаем определение в код
+add_compile_definitions(UMNI_DEVICE="${UMNI_DEVICE}")
+
 message(STATUS "========================================")
 message(STATUS "BUILD FOR: ${UMNI_DEVICE}")
 message(STATUS "========================================")

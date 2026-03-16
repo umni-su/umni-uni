@@ -9,6 +9,7 @@ typedef struct
     char ip_address[16];     // XXX.XXX.XXX.XXX
     char netmask[16];        // XXX.XXX.XXX.XXX
     char gateway[16];        // XXX.XXX.XXX.XXX
+    char mac_address[18];    // "xx:xx:xx:xx:xx:xx" + null terminator
     uint8_t is_active;       // 1 если интерфейс активен
 } um_network_interface_info_t;
 

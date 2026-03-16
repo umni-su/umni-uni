@@ -62,7 +62,10 @@ esp_err_t um_capabilities_init(void)
 #if UM_FEATURE_ENABLED(ALARM)
     s_enabled_count++;
 #endif
-#if UM_FEATURE_ENABLED(ADC)
+#if UM_FEATURE_ENABLED(AI)
+    s_enabled_count++;
+#endif
+#if UM_FEATURE_ENABLED(NTC)
     s_enabled_count++;
 #endif
 #if UM_FEATURE_ENABLED(NTC1)
@@ -234,11 +237,19 @@ esp_err_t um_capabilities_init(void)
     index++;
 #endif
 
-#if UM_FEATURE_ENABLED(ADC)
+#if UM_FEATURE_ENABLED(AI)
     s_enabled_capabilities[index].cap = UM_CAP_ADC;
-    s_enabled_capabilities[index].name = "adc";
+    s_enabled_capabilities[index].name = "ai";
     s_enabled_capabilities[index].mask = CAP_MASK(UM_CAP_ADC);
     s_enabled_mask |= CAP_MASK(UM_CAP_ADC);
+    index++;
+#endif
+
+#if UM_FEATURE_ENABLED(NTC)
+    s_enabled_capabilities[index].cap = UM_CAP_NTC;
+    s_enabled_capabilities[index].name = "ntc";
+    s_enabled_capabilities[index].mask = CAP_MASK(UM_CAP_NTC);
+    s_enabled_mask |= CAP_MASK(UM_CAP_NTC);
     index++;
 #endif
 
@@ -276,7 +287,7 @@ esp_err_t um_capabilities_init(void)
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
     s_enabled_capabilities[index].cap = UM_CAP_OPENCOLLECTORS;
-    s_enabled_capabilities[index].name = "opencollectors";
+    s_enabled_capabilities[index].name = "ocpencollectors";
     s_enabled_capabilities[index].mask = CAP_MASK(UM_CAP_OPENCOLLECTORS);
     s_enabled_mask |= CAP_MASK(UM_CAP_OPENCOLLECTORS);
     index++;

@@ -16,6 +16,7 @@
 #define UM_MQTT_TOPIC_PREFIX_MANAGE "/manage/"
 #define UM_MQTT_TOPIC_REGISTER "/register"
 #define UM_MQTT_TOPIC_STATUS "/status"
+#define UM_MQTT_TOPIC_SENSORS "/sensors"
 #define UM_MQTT_TOPIC_LWT "/lwt"
 #define UM_MQTT_TOPIC_PING "/ping"
 #define UM_MQTT_TOPIC_PONG "/pong"
@@ -24,8 +25,8 @@
 
 #define UM_MQTT_TOPIC_AI "ai"
 #define UM_MQTT_TOPIC_NTC "ntc"
-#define UM_MQTT_TOPIC_INPUTS "di"
-#define UM_MQTT_TOPIC_OUTPUTS "do"
+#define UM_MQTT_TOPIC_INPUTS "inputs"
+#define UM_MQTT_TOPIC_OUTPUTS "outputs"
 #define UM_MQTT_TOPIC_ONEWIRE "onewire"
 #define UM_MQTT_TOPIC_OPENTHERM "ot"
 #define UM_MQTT_TOPIC_OPENCOLLECTORS "oc"
@@ -43,6 +44,7 @@ typedef struct
 
 typedef struct
 {
+    char *category;
     um_capability_t capability;
     float value;
     char *serial;
@@ -85,13 +87,12 @@ esp_err_t um_mqtt_publish(const char *topic, const char *data, int qos, int reta
 
 /**
  * @brief Опубликовать данные в топик
- * @param topic Топик (будет автоматически дополнен префиксом device/{client_id})
  * @param payload Payload для публикации
  * @param qos QoS (0, 1 или 2)
  * @param retain Retain флаг
  * @return esp_err_t ESP_OK при успехе
  */
-esp_err_t um_mqtt_publish_sensor_payload(const char *topic, um_mqtt_sensor_payload_t payload, int qos, int retain);
+esp_err_t um_mqtt_publish_sensor_payload(um_mqtt_sensor_payload_t payload, int qos, int retain);
 
 /**
  * @brief Опубликовать данные в полный топик (без автоматического префикса)

@@ -119,10 +119,11 @@ static void input_monitor_task(void *arg)
 #if UM_FEATURE_ENABLED(MQTT)
                             um_capability_t cap = (um_capability_t)(UM_CAP_INP1 + i - 1); // тк объявлены друг за другом!
                             um_mqtt_sensor_payload_t payload = {
+                                .category = UM_MQTT_TOPIC_INPUTS,
                                 .capability = cap,
                                 .serial = NULL,
                                 .value = state};
-                            um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_INPUTS, payload, 0, 0);
+                            um_mqtt_publish_sensor_payload(payload, 0, 0);
 #endif
                         }
 #endif
@@ -517,10 +518,11 @@ esp_err_t um_dio_set_output(um_do_port_index_t output_idx, um_do_level_t level)
     {
 #if UM_FEATURE_ENABLED(MQTT)
         um_mqtt_sensor_payload_t payload = {
+            .category = UM_MQTT_TOPIC_OUTPUTS,
             .capability = cap,
             .serial = NULL,
             .value = level};
-        um_mqtt_publish_sensor_payload(UM_MQTT_TOPIC_OUTPUTS, payload, 0, 0);
+        um_mqtt_publish_sensor_payload(payload, 0, 0);
 #endif
     }
 

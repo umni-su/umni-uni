@@ -100,6 +100,18 @@ extern "C"
      */
     uint8_t um_dio_config_get_output_port(uint8_t config_index);
 
+    /**
+     * @brief Возвращает конфигурацию входов как JSON строку
+     * @return char* JSON строка или NULL (нужно освободить через free())
+     */
+    char *um_dio_config_get_inputs_json(void);
+
+    /**
+     * @brief Возвращает конфигурацию выходов как JSON строку
+     * @return char* JSON строка или NULL (нужно освободить через free())
+     */
+    char *um_dio_config_get_outputs_json(void);
+
 #ifdef __cplusplus
 }
 #endif

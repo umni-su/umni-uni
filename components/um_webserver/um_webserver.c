@@ -340,10 +340,18 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
         return ESP_ERR_NOT_SUPPORTED;
 #endif
     }
-    else if (strcmp(section, "dio") == 0)
+    else if (strcmp(section, "inputs") == 0)
     {
-#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
-        config_str = um_dio_config_read();
+#if UM_FEATURE_ENABLED(INPUTS)
+        config_str = um_dio_config_get_inputs_json();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else if (strcmp(section, "outputs") == 0)
+    {
+#if UM_FEATURE_ENABLED(INPUTS)
+        config_str = um_dio_config_get_outputs_json();
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif
@@ -490,18 +498,19 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
         cJSON *username = cJSON_GetObjectItem(values, "username");
         cJSON *password = cJSON_GetObjectItem(values, "password");
         bool auth = false;
-        if (username->valuestring && password->valuestring)
+        if (username && cJSON_IsString(username) && password && cJSON_IsString(password))
         {
             auth = true;
         }
-        if (cJSON_IsBool(en))
+        if (en && cJSON_IsBool(en))
         {
             um_nvs_set_mqtt_enabled(cJSON_IsTrue(en));
         }
         um_nvs_set_mqtt_username(auth ? username->valuestring : NULL);
         um_nvs_set_mqtt_password(auth ? password->valuestring : NULL);
-        um_nvs_set_mqtt_host(host->valuestring ? host->valuestring : "localhost");
-        um_nvs_set_mqtt_port(port->valueint ? port->valueint : 1883);
+
+        um_nvs_set_mqtt_host(host && cJSON_IsString(host) ? host->valuestring : "localhost");
+        um_nvs_set_mqtt_port(port && cJSON_IsNumber(port) ? port->valueint : 1883);
         cJSON *data = cJSON_CreateObject();
 
         *output = data;
