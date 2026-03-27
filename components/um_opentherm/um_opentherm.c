@@ -7,8 +7,8 @@
 #include "um_events.h"
 #include "um_opentherm.h"
 
-//CONFIG_UM_CFG_OT_IN_GPIO=26
-//CONFIG_UM_CFG_OT_OUT_GPIO=25
+// CONFIG_UM_CFG_OT_IN_GPIO=26
+// CONFIG_UM_CFG_OT_OUT_GPIO=25
 
 #if UM_FEATURE_ENABLED(OPENTHERM)
 
@@ -76,7 +76,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
     static bool last_enabled_state = false;
     static TickType_t last_state_check_time = 0;
     static TickType_t last_nvs_check_time = 0;
-    
+
     // Первая инициализация
     last_enabled_state = otEnabled;
     last_state_check_time = xTaskGetTickCount();
@@ -85,9 +85,9 @@ void um_opentherm_control_task_handler(void *pvParameter)
     while (true)
     {
         TickType_t loop_start_time = xTaskGetTickCount();
-        
+
         // Если OpenTherm отключен
-        if(!otEnabled)
+        if (!otEnabled)
         {
             // Логируем изменение состояния (один раз при переходе)
             if (last_enabled_state != otEnabled)
@@ -95,17 +95,17 @@ void um_opentherm_control_task_handler(void *pvParameter)
                 ESP_LOGI(TAG, "OpenTherm disabled, entering low-power mode");
                 last_enabled_state = otEnabled;
             }
-            
+
             // Основная точка блокировки - даём CPU поработать другим задачам
             vTaskDelay(pdMS_TO_TICKS(1000));
-            
+
             // Периодическая проверка NVS на изменение состояния (раз в 5 секунд)
             TickType_t current_time = xTaskGetTickCount();
             if ((current_time - last_nvs_check_time) > pdMS_TO_TICKS(5000))
             {
                 um_nvs_get_ot_enabled(&otEnabled);
                 last_nvs_check_time = current_time;
-                
+
                 if (otEnabled)
                 {
                     ESP_LOGI(TAG, "OpenTherm enabled from NVS, initializing...");
@@ -117,10 +117,10 @@ void um_opentherm_control_task_handler(void *pvParameter)
                     um_nvs_get_ot_outdoor_temp_comp(&enableOutsideTemperatureCompensation);
                 }
             }
-            
+
             continue; // Переход к следующей итерации цикла
         }
-        
+
         // Если OpenTherm включен - обычная логика работы
         esp_err_t res = um_ot_set_boiler_status(
             enableCentralHeating,
@@ -141,12 +141,12 @@ void um_opentherm_control_task_handler(void *pvParameter)
                 enableCentralHeating2);
             um_ot_set_boiler_temp(targetCHTemp);
             um_ot_set_dhw_setpoint(targetDHWTemp);
-            
+
             // ВАЖНО: Задержка перед повторной попыткой
             vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
-        } 
-        else 
+        }
+        else
         {
             ESP_LOGI(TAG, "Set CH: %i,  DHW %i", targetCHTemp, targetDHWTemp);
         }
@@ -157,7 +157,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
 
             ESP_LOGI(TAG, "\r\n====== OPENTHERM DATA =====");
             ESP_LOGI(TAG, "Free heap size before: %ld", esp_get_free_heap_size());
-            ESP_LOGI(TAG, "NVS OT values - chen: %d, hwa: %d, dhwspt: %d chspt: %d", 
+            ESP_LOGI(TAG, "NVS OT values - chen: %d, hwa: %d, dhwspt: %d chspt: %d",
                      enableCentralHeating, enableHotWater, targetDHWTemp, targetCHTemp);
 
             ot_response_status = esp_ot_get_last_response_status();
@@ -256,35 +256,35 @@ void um_opentherm_control_task_handler(void *pvParameter)
 
                 ot_data.flow_rate = esp_ot_get_flow_rate();
                 ESP_LOGI(TAG, "esp_ot_get_flow_rate: %.1f", ot_data.flow_rate);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
 
                 ot_data.ch_max_setpoint = esp_ot_get_ch_max_setpoint();
                 ESP_LOGI(TAG, "esp_ot_get_ch_max_setpoint: %.1f", ot_data.ch_max_setpoint);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
 
                 ot_data.outside_temperature = esp_ot_get_outside_temperature();
                 ESP_LOGI(TAG, "esp_ot_get_outside_temperature: %.1f", ot_data.outside_temperature);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
 
                 esp_ot_min_max_t dhw_bounds = esp_ot_get_dhw_upper_lower_bounds();
                 ot_data.dhw_min_max = dhw_bounds;
                 ESP_LOGI(TAG, "dhw_bounds min: %d, max: %d", dhw_bounds.min, dhw_bounds.max);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
 
                 esp_ot_min_max_t ch_bounds = esp_ot_get_ch_upper_lower_bounds();
                 ot_data.ch_min_max = ch_bounds;
                 ESP_LOGI(TAG, "ch_bounds min: %d, max: %d", ot_data.ch_min_max.min, ot_data.ch_min_max.max);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
 
                 esp_ot_cap_mod_t cap_mod = esp_ot_get_max_capacity_min_modulation();
                 ot_data.cap_mod = cap_mod;
                 ESP_LOGI(TAG, "ch_bounds cap: %d kw, min_mod: %d", ot_data.cap_mod.kw, ot_data.cap_mod.min_modulation);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
 
                 // кривая нагрева - верхние и нижние границы
                 ot_data.curve_bounds = esp_ot_get_heat_curve_ul_bounds();
                 ESP_LOGI(TAG, "curve_bounds min: %d, max: %d", ot_data.curve_bounds.min, ot_data.curve_bounds.max);
-                vTaskDelay(pdMS_TO_TICKS(1));
+                vTaskDelay(pdMS_TO_TICKS(10));
                 // чтение значения кривой с котла
                 // ot_data.heat_curve_ratio = esp_ot_get_heat_curve_ratio();
                 // ESP_LOGI(TAG, "heat_curve_ratio: %.1f", ot_data.heat_curve_ratio);
@@ -303,20 +303,21 @@ void um_opentherm_control_task_handler(void *pvParameter)
                 //     val = esp_ot_read_ch_pump_hours();
                 //     ESP_LOGI(TAG, "ch_pump_hours : %d", val);
                 // }
-                
+
                 ot_data.adapter_success = true;
                 ot_data.ready = true;
+                vTaskDelay(pdMS_TO_TICKS(5000));
             }
             else
             {
                 ESP_LOGW(TAG, "Error reading %d", ot_response_status);
             }
-            
+
             ESP_LOGI(TAG, "Free heap size after: %ld", esp_get_free_heap_size());
             ESP_LOGI(TAG, "====== OPENTHERM =====\r\n\r\n");
             is_busy = false;
         }
-        
+
         // Обновление счетчика и отправка данных
         if (task_count >= task_count_max_to_send_data)
         {
@@ -328,7 +329,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
         {
             task_count++;
         }
-        
+
         // Обеспечиваем минимальный период цикла (1 секунда)
         TickType_t loop_elapsed_time = xTaskGetTickCount() - loop_start_time;
         if (loop_elapsed_time < pdMS_TO_TICKS(1000))
@@ -340,7 +341,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
             // Если цикл занял больше 1 секунды, даём минимальную паузу
             vTaskDelay(pdMS_TO_TICKS(10));
         }
-        
+
         // Периодическая проверка NVS на изменение состояния (только в активном режиме)
         TickType_t current_time = xTaskGetTickCount();
         if ((current_time - last_nvs_check_time) > pdMS_TO_TICKS(5000))
@@ -351,7 +352,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
             {
                 otEnabled = new_ot_enabled;
                 last_nvs_check_time = current_time;
-                
+
                 if (!otEnabled)
                 {
                     ESP_LOGI(TAG, "OpenTherm disabled from NVS, stopping operations");
@@ -360,7 +361,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
             last_nvs_check_time = current_time;
         }
     }
-    
+
     vTaskDelete(NULL);
 }
 
@@ -380,7 +381,7 @@ esp_err_t um_ot_set_boiler_status(
     enableCentralHeating2 = enable_central_heating2;
 
     ot_data.otch = enableCentralHeating;
-    
+
     esp_err_t res = ESP_OK;
     status = esp_ot_set_boiler_status(
         enableCentralHeating,
@@ -505,7 +506,7 @@ void um_ot_init()
     ot_data.otdhwsp = targetDHWTemp;
     ot_data.ottbsp = targetCHTemp;
     ot_data.otch = enableCentralHeating;
-    
+
     ot_data.mod = mod;
     ot_data.othcr = hcr;
 

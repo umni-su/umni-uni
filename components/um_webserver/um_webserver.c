@@ -6,9 +6,18 @@
 #include "um_nvs.h"
 #include "um_helpers.h"
 #include "um_webserver.h"
+#include "um_capabilities.h"
+
+#if UM_FEATURE_ENABLED(BUZZER)
+#include "um_buzzer.h"
+#endif
 
 #if UM_FEATURE_ENABLED(ONEWIRE)
 #include "um_onewire_config.h"
+#endif
+
+#if UM_FEATURE_ENABLED(OPENTHERM)
+#include "um_opentherm.h"
 #endif
 
 #if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
@@ -28,6 +37,10 @@
 #include "um_ntc_config.h"
 #endif
 
+#if UM_FEATURE_ENABLED(OPENCOLLECTORS)
+#include "um_opencollectors.h"
+#endif
+
 #if UM_FEATURE_ENABLED(WEBSERVER)
 
 #define WEBSERVER_TAG "um_webserver"
@@ -36,6 +49,12 @@ static const char *REST_TAG = "um_webserver";
 static httpd_handle_t server = NULL;
 
 typedef esp_err_t (*um_data_provider_t)(httpd_req_t *req, cJSON **data_out);
+
+typedef struct rest_server_context
+{
+    char base_path[UM_SD_VFS_PATH_MAX + 1];
+    char scratch[SCRATCH_BUFSIZE];
+} rest_server_context_t;
 
 typedef struct
 {
@@ -62,6 +81,43 @@ static const char *TEST_HTML =
     "<p>Версия: 1.0.0</p>"
     "<p>Используйте REST API для взаимодействия</p>"
     "</div></body></html>";
+
+/**
+ *  Set HTTP response content type according to file extension
+ *
+ * @param   char       filepath  [filepath description]
+ *
+ * @return  esp_err_t            [return description]
+ */
+static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepath)
+{
+    const char *type = "text/plain";
+    if (CHECK_FILE_EXTENSION(filepath, ".html"))
+    {
+        type = "text/html";
+    }
+    else if (CHECK_FILE_EXTENSION(filepath, ".js"))
+    {
+        type = "application/javascript";
+    }
+    else if (CHECK_FILE_EXTENSION(filepath, ".css"))
+    {
+        type = "text/css";
+    }
+    else if (CHECK_FILE_EXTENSION(filepath, ".png"))
+    {
+        type = "image/png";
+    }
+    else if (CHECK_FILE_EXTENSION(filepath, ".ico"))
+    {
+        type = "image/x-icon";
+    }
+    else if (CHECK_FILE_EXTENSION(filepath, ".svg"))
+    {
+        type = "image/svg+xml";
+    }
+    return httpd_resp_set_type(req, type);
+}
 
 static esp_err_t get_wrapper(httpd_req_t *req)
 {
@@ -437,12 +493,57 @@ static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON *input, cJS
         }
 #endif
     }
+    else if (strcmp(mode->valuestring, "opencollectors") == 0)
+    {
+#if UM_FEATURE_ENABLED(OPENCOLLECTORS)
+        if (cJSON_IsNumber(level) && cJSON_IsNumber(index) && index->valueint >= 0)
+        {
+            return um_opencollectors_set(
+                index->valueint,
+                level->valueint);
+        }
+#endif
+    }
     else
     {
         return ESP_ERR_NOT_FOUND;
     }
 
     *output = NULL;
+    return ESP_OK;
+}
+
+static esp_err_t um_webserver_beep_handler(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+
+#if UM_FEATURE_ENABLED(BUZZER)
+    cJSON *beep_count = cJSON_GetObjectItem(input, "count");
+    cJSON *beep_on_ms = cJSON_GetObjectItem(input, "on_ms");
+    cJSON *beep_off_ms = cJSON_GetObjectItem(input, "off_ms");
+    if (
+        cJSON_IsNumber(beep_count) &&
+        cJSON_IsNumber(beep_on_ms) &&
+        cJSON_IsNumber(beep_off_ms))
+    {
+        uint8_t beep_count_res = beep_count->valueint > 16 || beep_count->valueint < 0 ? 3 : beep_count->valueint;
+        uint16_t beep_on_ms_res = beep_on_ms->valueint > 1000 || beep_on_ms->valueint < 0 ? 100 : beep_on_ms->valueint;
+        uint16_t beep_off_ms_res = beep_off_ms->valueint > 1000 || beep_off_ms->valueint < 0 ? 100 : beep_off_ms->valueint;
+        um_buzzer_beep_in_task(beep_count_res, beep_on_ms_res, beep_off_ms_res);
+    }
+
+#endif
+    *output = NULL;
+    return ESP_OK;
+}
+
+static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+    cJSON *capability = cJSON_GetObjectItem(input, "capability");
+    if (cJSON_IsString(capability))
+    {
+        // получение настроек или значений согласно capability
+        um_capabilities_get_mask();
+    }
     return ESP_OK;
 }
 
@@ -491,6 +592,7 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
 
     if (strcmp(setting->valuestring, "mqtt") == 0)
     {
+#if UM_FEATURE_ENABLED(MQTT)
         // {values: {en: bool, host: string, port: int, user: ?string, password: ?string}}
         cJSON *en = cJSON_GetObjectItem(values, "en");
         cJSON *host = cJSON_GetObjectItem(values, "host");
@@ -514,10 +616,12 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
         cJSON *data = cJSON_CreateObject();
 
         *output = data;
+#endif
         return ESP_OK;
     }
     else if (strcmp(setting->valuestring, "webhook") == 0)
     {
+#if UM_FEATURE_ENABLED(WEBHOOKS)
         cJSON *whk_en = cJSON_GetObjectItem(values, "en");
         cJSON *whk_url = cJSON_GetObjectItem(values, "url");
         if (cJSON_IsBool(whk_en))
@@ -528,12 +632,193 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
         {
             um_nvs_set_webhooks_url(whk_url->valuestring);
         }
+#endif
     }
-    else
+    else if (strcmp(setting->valuestring, "outputs") == 0)
     {
-        return ESP_ERR_NOT_FOUND;
-    }
+#if UM_FEATURE_ENABLED(OUTPUTS)
+        cJSON *do_index = cJSON_GetObjectItem(values, "index");
+        cJSON *do_en = cJSON_GetObjectItem(values, "en");
+        cJSON *do_label = cJSON_GetObjectItem(values, "label");
 
+        if (
+            cJSON_IsNumber(do_index) &&
+            cJSON_IsBool(do_en) &&
+            cJSON_IsString(do_label))
+        {
+            esp_err_t res = ESP_FAIL;
+            bool default_state = false;
+            res = um_dio_get_output(do_index->valueint, &default_state);
+
+            if (res != ESP_OK)
+                return res;
+
+            res = um_dio_config_update_output(
+                do_index->valueint,
+                do_label->valuestring,
+                cJSON_IsTrue(do_en),
+                default_state);
+
+            if (res != ESP_OK)
+                return res;
+
+            return um_dio_config_save();
+        }
+        else
+        {
+            return ESP_FAIL;
+        }
+#endif
+    }
+    else if (strcmp(setting->valuestring, "inputs") == 0)
+    {
+#if UM_FEATURE_ENABLED(INPUTS)
+        cJSON *di_index = cJSON_GetObjectItem(values, "index");
+        cJSON *di_en = cJSON_GetObjectItem(values, "en");
+        cJSON *di_label = cJSON_GetObjectItem(values, "label");
+
+        if (
+            cJSON_IsNumber(di_index) &&
+            cJSON_IsBool(di_en) &&
+            cJSON_IsString(di_label))
+        {
+            esp_err_t res = ESP_FAIL;
+            res = um_dio_config_update_input(
+                di_index->valueint,
+                di_label->valuestring,
+                cJSON_IsTrue(di_en));
+
+            if (res != ESP_OK)
+                return res;
+
+            return um_dio_config_save();
+        }
+        else
+        {
+            return ESP_FAIL;
+        }
+#endif
+    }
+    else if (strcmp(setting->valuestring, "ntc") == 0)
+    {
+#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
+        cJSON *ntc_channel = cJSON_GetObjectItem(values, "channel");
+        cJSON *ntc_active = cJSON_GetObjectItem(values, "active");
+        cJSON *ntc_calibration_offset = cJSON_GetObjectItem(values, "offset");
+        cJSON *ntc_label = cJSON_GetObjectItem(values, "label");
+        if (
+            cJSON_IsNumber(ntc_channel) &&
+            cJSON_IsBool(ntc_active) &&
+            cJSON_IsNumber(ntc_calibration_offset) &&
+            cJSON_IsString(ntc_label))
+        {
+
+            um_ntc_channel_config_t ntc_config = {0}; // Сначала обнуляем
+            ntc_config.channel_id = ntc_channel->valueint;
+            strlcpy(ntc_config.label, ntc_label->valuestring, sizeof(ntc_config.label));
+            ntc_config.active = cJSON_IsTrue(ntc_active);
+            ntc_config.calibration_offset = ntc_calibration_offset->valuedouble;
+            um_ntc_config_update(
+                ntc_channel->valueint,
+                &ntc_config);
+            return um_ntc_config_save();
+        }
+        else
+        {
+            return ESP_ERR_INVALID_ARG;
+        }
+#endif
+    }
+    else if (strcmp(setting->valuestring, "adc") == 0)
+    {
+#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+        cJSON *adc_channel = cJSON_GetObjectItem(values, "channel");
+        cJSON *adc_active = cJSON_GetObjectItem(values, "active");
+        cJSON *adc_offset = cJSON_GetObjectItem(values, "offset");
+        cJSON *adc_label = cJSON_GetObjectItem(values, "label");
+        if (
+            cJSON_IsNumber(adc_channel) &&
+            cJSON_IsBool(adc_active) &&
+            cJSON_IsNumber(adc_offset) &&
+            cJSON_IsString(adc_label))
+        {
+
+            um_adc_channel_config_t adc_config = {0}; // Сначала обнуляем
+            adc_config.channel_id = adc_channel->valueint;
+            strlcpy(adc_config.label, adc_label->valuestring, sizeof(adc_config.label));
+            adc_config.active = cJSON_IsTrue(adc_active);
+            adc_config.offset = adc_offset->valuedouble;
+            um_adc_config_update(
+                adc_channel->valueint,
+                &adc_config);
+            return um_adc_config_save();
+        }
+        else
+        {
+            return ESP_ERR_INVALID_ARG;
+        }
+#endif
+    }
+    else if (strcmp(setting->valuestring, "opentherm") == 0)
+    {
+#if UM_FEATURE_ENABLED(OPENTHERM)
+        cJSON *ot_en = cJSON_GetObjectItem(values, "en");
+
+        cJSON *ot_ch_en = cJSON_GetObjectItem(values, "ch_en");
+        cJSON *ot_ch_sp = cJSON_GetObjectItem(values, "ch_sp");
+
+        cJSON *ot_dhw_en = cJSON_GetObjectItem(values, "dhw_en");
+        cJSON *ot_dhw_sp = cJSON_GetObjectItem(values, "dhw_sp");
+
+        cJSON *ot_ch2_en = cJSON_GetObjectItem(values, "ch2_en");
+
+        cJSON *ot_cool_en = cJSON_GetObjectItem(values, "cool_en");
+
+        cJSON *ot_mod = cJSON_GetObjectItem(values, "mod");
+
+        // TODO cJSON *ot_hcr = cJSON_GetObjectItem(values, "hcr");
+
+        cJSON *ot_otc_en = cJSON_GetObjectItem(values, "otc_en");
+
+        if (cJSON_IsBool(ot_en))
+        {
+            um_nvs_set_ot_enabled(cJSON_IsTrue(ot_en));
+        }
+        if (cJSON_IsBool(ot_ch_en))
+        {
+            um_nvs_set_ot_ch_enabled(cJSON_IsTrue(ot_ch_en));
+        }
+        if (cJSON_IsNumber(ot_ch_sp))
+        {
+            um_nvs_set_ot_ch_setpoint((uint8_t)ot_ch_sp->valueint);
+        }
+        if (cJSON_IsBool(ot_dhw_en))
+        {
+            um_nvs_set_ot_dhw_enabled(cJSON_IsTrue(ot_dhw_en));
+        }
+        if (cJSON_IsNumber(ot_dhw_sp))
+        {
+            um_nvs_set_ot_dhw_setpoint((uint8_t)ot_dhw_sp->valueint);
+        }
+        if (cJSON_IsBool(ot_ch2_en))
+        {
+            um_nvs_set_ot_ch2_enabled(cJSON_IsTrue(ot_ch2_en));
+        }
+        if (cJSON_IsBool(ot_cool_en))
+        {
+            um_nvs_set_ot_cool_enabled(cJSON_IsTrue(ot_cool_en));
+        }
+        if (cJSON_IsNumber(ot_mod))
+        {
+            um_nvs_set_ot_modulation((uint8_t)ot_mod->valueint);
+        }
+        // TODO um_nvs_set_ot_heating_curve_ratio();
+        if (cJSON_IsBool(ot_otc_en))
+        {
+            um_nvs_set_ot_outdoor_temp_comp(cJSON_IsTrue(ot_otc_en));
+        }
+#endif
+    }
     return ESP_OK;
 }
 
@@ -545,13 +830,72 @@ static esp_err_t um_webserver_static_handler(httpd_req_t *req)
     ESP_LOGI(REST_TAG, "Statix file query: %s", req->uri);
 
 #if UM_FEATURE_ENABLED(SDCARD)
-    // Здесь будет код для чтения файлов с SD карты
-    // Пока просто возвращаем тестовую страницу
-#endif
+    char filepath[FILE_PATH_MAX];
 
+    rest_server_context_t *rest_context = (rest_server_context_t *)req->user_ctx;
+
+    strlcpy(filepath, rest_context->base_path, sizeof(filepath));
+
+    if (req->uri[strlen(req->uri) - 1] == '/')
+    {
+        strlcat(filepath, "/index.html", sizeof(filepath));
+    }
+    else
+    {
+        strlcat(filepath, req->uri, sizeof(filepath));
+        char *token = strtok(filepath, "?");
+        if (token != NULL)
+        {
+            // printf(" %s\n", token);
+        }
+    }
+    int fd = open(filepath, O_RDONLY, 0);
+    if (fd == -1)
+    {
+        ESP_LOGE(REST_TAG, "Failed to open file : %s", filepath);
+        /* Respond with 500 Internal Server Error */
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read existing file");
+        return ESP_FAIL;
+    }
+
+    set_content_type_from_file(req, filepath);
+    printf(filepath);
+
+    char *chunk = rest_context->scratch;
+    ssize_t read_bytes;
+    do
+    {
+        /* Read file in chunks into the scratch buffer */
+        read_bytes = read(fd, chunk, SCRATCH_BUFSIZE);
+        if (read_bytes == -1)
+        {
+            ESP_LOGE(REST_TAG, "Failed to read file : %s", filepath);
+        }
+        else if (read_bytes > 0)
+        {
+            /* Send the buffer contents as HTTP response chunk */
+            if (httpd_resp_send_chunk(req, chunk, read_bytes) != ESP_OK)
+            {
+                close(fd);
+                ESP_LOGE(REST_TAG, "File sending failed!");
+                /* Abort sending file */
+                httpd_resp_sendstr_chunk(req, NULL);
+                /* Respond with 500 Internal Server Error */
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to send file");
+                return ESP_FAIL;
+            }
+        }
+    } while (read_bytes > 0);
+    /* Close file after sending complete */
+    close(fd);
+    // ESP_LOGI(REST_TAG, "File sending complete");
+    /* Respond with an empty chunk to signal HTTP response completion */
+    httpd_resp_send_chunk(req, NULL, 0);
+#else
     // Возвращаем тестовую HTML страницу
     httpd_resp_set_type(req, "text/html");
     httpd_resp_sendstr(req, TEST_HTML);
+#endif
 
     return ESP_OK;
 }
@@ -565,12 +909,21 @@ esp_err_t um_webserver_start(void)
 
     // Конфигурация сервера
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+    char *base_path = CONFIG_UMNI_SD_MOUNT_POINT "/www";
+
+    REST_CHECK(base_path, "wrong base path", err);
+    rest_server_context_t *rest_context = calloc(1, sizeof(rest_server_context_t));
+    REST_CHECK(rest_context, "No memory for rest context", err);
+    strlcpy(rest_context->base_path, base_path, sizeof(rest_context->base_path));
+
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 20;
     config.stack_size = 8192;
 
     // Запуск сервера
     esp_err_t ret = httpd_start(&server, &config);
+    REST_CHECK(ret == ESP_OK, "Start server failed", err_start);
     if (ret != ESP_OK)
     {
         ESP_LOGE(WEBSERVER_TAG, "Web-server start error: %s", esp_err_to_name(ret));
@@ -581,26 +934,32 @@ esp_err_t um_webserver_start(void)
     um_webserver_register_get("/api/conf", get_config_data);
     um_webserver_register_post("/api/switch", um_webserver_on_off_handler);
     um_webserver_register_post("/api/login", um_webserver_login_handler);
+    um_webserver_register_post("/api/beep", um_webserver_beep_handler);
     um_webserver_register_post("/api/settings", um_webserver_save_settings_handler);
+    um_webserver_register_post("/api/state", um_webserver_state_handler);
 
     // Обработчик для корневого пути (статический HTML)
     httpd_uri_t root_uri = {
         .uri = "/",
         .method = HTTP_GET,
         .handler = um_webserver_static_handler,
-        .user_ctx = NULL};
+        .user_ctx = rest_context};
     httpd_register_uri_handler(server, &root_uri);
 
     // Обработчик для index.html
     httpd_uri_t index_uri = {
-        .uri = "/index.html",
+        .uri = "/*",
         .method = HTTP_GET,
         .handler = um_webserver_static_handler,
-        .user_ctx = NULL};
+        .user_ctx = rest_context};
     httpd_register_uri_handler(server, &index_uri);
 
     ESP_LOGI(WEBSERVER_TAG, "Web-server started successfully");
     return ESP_OK;
+err_start:
+    free(rest_context);
+err:
+    return ESP_FAIL;
 }
 
 /**

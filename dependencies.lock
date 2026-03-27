@@ -289,6 +289,12 @@ dependencies:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_adc
       type: local
     version: 1.0.0
+  um_buzzer:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_buzzer
+      type: local
+    version: 1.0.0
   um_capabilities:
     dependencies: []
     source:
@@ -337,10 +343,28 @@ dependencies:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_onewire
       type: local
     version: 1.0.0
+  um_opencollectors:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_opencollectors
+      type: local
+    version: 1.0.0
+  um_opentherm:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_opentherm
+      type: local
+    version: 1.0.0
   um_rf433:
     dependencies: []
     source:
       path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_rf433
+      type: local
+    version: 1.0.0
+  um_sd:
+    dependencies: []
+    source:
+      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_sd
       type: local
     version: 1.0.0
   um_storage:
@@ -360,6 +384,7 @@ direct_dependencies:
 - sazanof/opentherm
 - sazanof/rf433_receiver
 - um_adc
+- um_buzzer
 - um_capabilities
 - um_dio
 - um_events
@@ -368,8 +393,11 @@ direct_dependencies:
 - um_ntc
 - um_nvs
 - um_onewire
+- um_opencollectors
+- um_opentherm
 - um_rf433
+- um_sd
 - um_storage
-manifest_hash: 00cc29da9cf8cfce9457d1f9c86c99eeb148abc996ca1323d976e4a35c4f1dbb
+manifest_hash: c7d801c35895cf2ac5c2c9c3b89ed393eb8b4937f1dc070b3736da004b9a3530
 target: esp32
 version: 2.0.0

@@ -9,38 +9,46 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-static const char* TAG = "um_buzzer";
+static const char *TAG = "um_buzzer";
+
+static void um_beep_task(void *pvParameters);
+
+bool running = false;
 
 #if defined(CONFIG_UM_FEATURE_BUZZER)
 
-static struct {
+static struct
+{
     bool initialized;
     int gpio_num;
     um_buzzer_state_t state;
 } buzzer = {
     .initialized = false,
     .gpio_num = -1,
-    .state = UM_BUZZER_OFF
-};
+    .state = UM_BUZZER_OFF};
 
 // Convert state to GPIO level (assuming active HIGH buzzer)
-static inline int state_to_level(um_buzzer_state_t state) {
+static inline int state_to_level(um_buzzer_state_t state)
+{
     return (state == UM_BUZZER_ON) ? 1 : 0;
 }
 
-esp_err_t um_buzzer_init(void) {
-    if (buzzer.initialized) {
+esp_err_t um_buzzer_init(void)
+{
+    if (buzzer.initialized)
+    {
         ESP_LOGW(TAG, "Already initialized");
         return ESP_OK;
     }
-    
+
     buzzer.gpio_num = CONFIG_UM_CFG_BUZZER_GPIO;
-    
-    if (buzzer.gpio_num < 0) {
+
+    if (buzzer.gpio_num < 0)
+    {
         ESP_LOGE(TAG, "Invalid GPIO: %d", buzzer.gpio_num);
         return ESP_ERR_INVALID_ARG;
     }
-    
+
     // Configure GPIO
     gpio_config_t io_conf = {
         .pin_bit_mask = (1ULL << buzzer.gpio_num),
@@ -49,95 +57,186 @@ esp_err_t um_buzzer_init(void) {
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE,
     };
-    
+
     esp_err_t ret = gpio_config(&io_conf);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure GPIO %d: %s", 
+    if (ret != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Failed to configure GPIO %d: %s",
                  buzzer.gpio_num, esp_err_to_name(ret));
         return ret;
     }
-    
+
     // Start with OFF state
     buzzer.state = UM_BUZZER_OFF;
     gpio_set_level(buzzer.gpio_num, state_to_level(UM_BUZZER_OFF));
-    
+
     buzzer.initialized = true;
     ESP_LOGI(TAG, "Buzzer initialized on GPIO %d", buzzer.gpio_num);
-    
+
     return ESP_OK;
 }
 
-esp_err_t um_buzzer_set(um_buzzer_state_t state) {
-    if (!buzzer.initialized) {
+esp_err_t um_buzzer_set(um_buzzer_state_t state)
+{
+    if (!buzzer.initialized)
+    {
         ESP_LOGE(TAG, "Not initialized");
         return ESP_ERR_INVALID_STATE;
     }
-    
-    if (buzzer.state == state) {
+
+    if (buzzer.state == state)
+    {
         return ESP_OK; // Already in desired state
     }
-    
+
     buzzer.state = state;
     gpio_set_level(buzzer.gpio_num, state_to_level(state));
-    
-    ESP_LOGI(TAG, "Buzzer set to %s", 
+
+    ESP_LOGI(TAG, "Buzzer set to %s",
              state == UM_BUZZER_ON ? "ON" : "OFF");
-    
+
     return ESP_OK;
 }
 
-esp_err_t um_buzzer_get(um_buzzer_state_t* state) {
-    if (!buzzer.initialized) {
+esp_err_t um_buzzer_get(um_buzzer_state_t *state)
+{
+    if (!buzzer.initialized)
+    {
         return ESP_ERR_INVALID_STATE;
     }
-    
-    if (state == NULL) {
+
+    if (state == NULL)
+    {
         return ESP_ERR_INVALID_ARG;
     }
-    
+
     *state = buzzer.state;
     return ESP_OK;
 }
 
-esp_err_t um_buzzer_toggle(void) {
-    if (!buzzer.initialized) {
+esp_err_t um_buzzer_toggle(void)
+{
+    if (!buzzer.initialized)
+    {
         return ESP_ERR_INVALID_STATE;
     }
-    
-    um_buzzer_state_t new_state = (buzzer.state == UM_BUZZER_ON) 
-                                  ? UM_BUZZER_OFF 
-                                  : UM_BUZZER_ON;
-    
+
+    um_buzzer_state_t new_state = (buzzer.state == UM_BUZZER_ON)
+                                      ? UM_BUZZER_OFF
+                                      : UM_BUZZER_ON;
+
     return um_buzzer_set(new_state);
 }
 
-esp_err_t um_buzzer_beep(uint8_t beeps, uint16_t on_time_ms, uint16_t off_time_ms) {
-    if (!buzzer.initialized) {
+esp_err_t um_buzzer_beep_in_task(uint8_t beeps, uint16_t on_time_ms, uint16_t off_time_ms)
+{
+    if (!buzzer.initialized)
+    {
         return ESP_ERR_INVALID_STATE;
     }
-    
-    if (beeps == 0) {
+
+    if (running)
+        return ESP_ERR_INVALID_STATE;
+
+    running = true;
+
+    if (beeps == 0)
+    {
         return ESP_OK;
     }
-    
-    for (uint8_t i = 0; i < beeps; i++) {
+
+    beep_params_t *params = malloc(sizeof(beep_params_t));
+    if (params == NULL)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+
+    params->beeps = beeps;
+    params->on_time_ms = on_time_ms;
+    params->off_time_ms = off_time_ms;
+
+    // Создаем задачу
+    BaseType_t result = xTaskCreatePinnedToCore(
+        um_beep_task,
+        "um_beep_task",
+        2048,
+        params,
+        1,
+        NULL,
+        1);
+
+    if (result != pdPASS)
+    {
+        free(params);
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+// Функция задачи
+static void um_beep_task(void *pvParameters)
+{
+    beep_params_t *params = (beep_params_t *)pvParameters;
+    uint8_t beeps = params->beeps > 16 ? 3 : params->beeps;
+    uint16_t off_ms = params->off_time_ms > 1000 ? 100 : params->off_time_ms;
+    uint16_t on_ms = params->on_time_ms > 1000 ? 100 : params->on_time_ms;
+
+    if (params->on_time_ms)
+
+        for (uint8_t i = 0; i < beeps; i++)
+        {
+            um_buzzer_set(UM_BUZZER_ON);
+            vTaskDelay(pdMS_TO_TICKS(on_ms));
+
+            if (i < off_ms - 1)
+            {
+                um_buzzer_set(UM_BUZZER_OFF);
+                vTaskDelay(pdMS_TO_TICKS(off_ms));
+            }
+        }
+
+    um_buzzer_set(UM_BUZZER_OFF);
+
+    ESP_LOGI(TAG, "Beep pattern completed: %d beeps", beeps);
+
+    free(params);
+    running = false;
+    vTaskDelete(NULL);
+}
+
+esp_err_t um_buzzer_beep(uint8_t beeps, uint16_t on_time_ms, uint16_t off_time_ms)
+{
+    if (!buzzer.initialized)
+    {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    if (beeps == 0)
+    {
+        return ESP_OK;
+    }
+
+    for (uint8_t i = 0; i < beeps; i++)
+    {
         // Beep ON
         um_buzzer_set(UM_BUZZER_ON);
         vTaskDelay(pdMS_TO_TICKS(on_time_ms));
-        
+
         // Beep OFF (except for last beep)
-        if (i < beeps - 1) {
+        if (i < beeps - 1)
+        {
             um_buzzer_set(UM_BUZZER_OFF);
             vTaskDelay(pdMS_TO_TICKS(off_time_ms));
         }
     }
-    
+
     // Always end with OFF
     um_buzzer_set(UM_BUZZER_OFF);
-    
-    ESP_LOGI(TAG, "Beep pattern: %d beeps (on=%dms, off=%dms)", 
+
+    ESP_LOGI(TAG, "Beep pattern: %d beeps (on=%dms, off=%dms)",
              beeps, on_time_ms, off_time_ms);
-    
+
     return ESP_OK;
 }
 

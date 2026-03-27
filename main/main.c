@@ -474,4 +474,8 @@ void app_main(void)
     ESP_LOGI(TAG, "Приложение запущено успешно!");
 
     xTaskCreatePinnedToCore(um_main_device_handler, "um_main_device_handler", 4096, NULL, 3, &um_sensors_task_handle, 1);
+
+#if UM_FEATURE_ENABLED(OPENTHERM)
+    um_ot_init();
+#endif
 }

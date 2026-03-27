@@ -4,14 +4,28 @@ dependencies:
   um_nvs:
     path: ../um_nvs
     version: "*"
+  um_capabilities:
+    path: ../um_capabilities
+    version: "*"
+  um_sd:
+    path: ../um_sd
+  um_buzzer:
+    path: ../um_buzzer
+    version: "*"
   um_helpers:
     path: ../um_helpers
+    version: "*"
+  um_opentherm:
+    path: ../um_opentherm
     version: "*"
   um_events:
     path: ../um_events
     version: "*"
   um_onewire:
     path: ../um_onewire
+    version: "*"
+  um_opencollectors:
+    path: ../um_opencollectors
     version: "*"
   um_dio:
     path: ../um_dio

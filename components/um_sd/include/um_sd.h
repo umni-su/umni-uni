@@ -11,6 +11,8 @@
 #include "sdmmc_cmd.h"
 #include "driver/sdspi_host.h"
 
+#define UM_SD_VFS_PATH_MAX 15
+
 #ifndef CONFIG_UMNI_SD_MOUNT_POINT
 #define CONFIG_UMNI_SD_MOUNT_POINT "/sdcard"
 #endif
