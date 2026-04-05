@@ -85,6 +85,20 @@ extern "C"
     bool um_capabilities_has(um_capability_t cap);
 
     /**
+     * @brief Check if a capability is enabled by its string name
+     * @param name String name of the capability (e.g., "wifi", "ethernet")
+     * @return true if enabled, false otherwise
+     */
+    bool um_capabilities_has_by_name(const char *name);
+
+    /**
+     * @brief Get capability enum by its string name
+     * @param name String name of the capability (e.g., "wifi", "ethernet")
+     * @return Capability enum value or UM_CAP_NONE if not found
+     */
+    um_capability_t um_capabilities_get_by_name(const char *name);
+
+    /**
      * @brief Get bitmask of all enabled capabilities
      * @return 64-bit bitmask (supports up to 64 features)
      */

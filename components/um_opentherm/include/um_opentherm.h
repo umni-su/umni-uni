@@ -9,19 +9,40 @@
 
 typedef struct
 {
+    bool modulation;       // Поддерживает ли котел чтение модуляции
+    bool modulation_write; // Можно ли задавать макс. модуляцию
+    bool heat_curve;       // Поддерживает ли кривую нагрева
+    bool heat_curve_write; // Можно ли задавать кривую
+    bool dhw_setpoint;     // Поддерживает ли уставку DHW
+    bool ch_setpoint;      // Поддерживает ли уставку CH
+    bool outside_temp;     // Есть ли датчик наружной температуры
+    bool return_temp;      // Есть ли датчик обратки
+    bool pressure;         // Есть ли датчик давления
+    bool flow_rate;        // Есть ли расходомер DHW
+} um_ot_supported_t;
+
+typedef struct
+{
     bool adapter_success;
-    bool ready;  // data ready or not
-    bool otch;   // from NVS
-    int otdhwsp; // from NVS
-    int ottbsp;  // from NVS
-    bool ch2;    // from NVS
-    bool ototc;  // from NVS
-    int othcr;   // from NVS
-    bool hwa;    // from NVS
+    bool ready; // data ready or not
+
+    bool ch_en; // from NVS
+    int ch_sp;  // from NVS
+
+    bool ch2_en; // from NVS
+
+    bool dhw_en; // from NVS
+    int dhw_sp;  // from NVS
+
+    bool otc_en; // from NVS
+    int hcr;     // from NVS
+
     int status;
+
     bool central_heating_active;
     bool hot_water_active;
     bool flame_on;
+
     float modulation;
     bool is_fault;
     int fault_code;
@@ -44,6 +65,7 @@ typedef struct
     esp_ot_cap_mod_t cap_mod;
     esp_ot_asf_flags_t asf_flags;
     esp_ot_slave_config_t slave_config;
+    um_ot_supported_t supported;
 
 } um_ot_data_t;
 
@@ -81,5 +103,9 @@ void um_ot_set_modulation_level(int level);
 void um_ot_set_hot_water_active(bool hwa);
 
 void um_ot_set_heat_curve_ratio(int ratio);
+
+char *um_ot_get_status_json(void);
+
+void um_ot_detect_supported_features(void);
 
 #endif

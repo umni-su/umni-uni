@@ -539,12 +539,28 @@ static esp_err_t um_webserver_beep_handler(httpd_req_t *req, cJSON *input, cJSON
 static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSON **output)
 {
     cJSON *capability = cJSON_GetObjectItem(input, "capability");
+    cJSON *data = NULL;
     if (cJSON_IsString(capability))
     {
         // получение настроек или значений согласно capability
-        um_capabilities_get_mask();
+        if (um_capabilities_has_by_name(capability->valuestring))
+        {
+            // функция доступна
+            um_capability_t cap = um_capabilities_get_by_name(capability->valuestring);
+            if (cap == UM_CAP_OPENTHERM)
+            {
+                //
+                char *ot_json = um_ot_get_status_json();
+                data = cJSON_Parse(ot_json);
+                free(ot_json);
+            }
+            *output = data;
+            return ESP_OK;
+        }
     }
-    return ESP_OK;
+
+    *output = data;
+    return ESP_ERR_INVALID_ARG;
 }
 
 /**

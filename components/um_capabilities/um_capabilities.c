@@ -550,3 +550,39 @@ char *um_capabilities_get_json_object(void)
     ptr += sprintf(ptr, "}");
     return json;
 }
+
+bool um_capabilities_has_by_name(const char *name)
+{
+    if (!name || s_enabled_count == 0 || !s_enabled_capabilities)
+    {
+        return false;
+    }
+
+    for (uint32_t i = 0; i < s_enabled_count; i++)
+    {
+        if (strcmp(s_enabled_capabilities[i].name, name) == 0)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+um_capability_t um_capabilities_get_by_name(const char *name)
+{
+    if (!name || s_enabled_count == 0 || !s_enabled_capabilities)
+    {
+        return UM_CAP_NONE;
+    }
+
+    for (uint32_t i = 0; i < s_enabled_count; i++)
+    {
+        if (strcmp(s_enabled_capabilities[i].name, name) == 0)
+        {
+            return s_enabled_capabilities[i].cap;
+        }
+    }
+
+    return UM_CAP_NONE;
+}

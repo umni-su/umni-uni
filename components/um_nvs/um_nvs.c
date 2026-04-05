@@ -921,6 +921,10 @@ esp_err_t um_nvs_get_ot_enabled(bool *enabled)
     {
         *enabled = (value == 1);
     }
+    else
+    {
+        *enabled = false;
+    }
     return err;
 }
 
@@ -935,6 +939,10 @@ esp_err_t um_nvs_get_ot_ch_enabled(bool *enabled)
     if (err == ESP_OK)
     {
         *enabled = (value == 1);
+    }
+    else
+    {
+        *enabled = true;
     }
     return err;
 }
@@ -951,6 +959,10 @@ esp_err_t um_nvs_get_ot_ch2_enabled(bool *enabled)
     {
         *enabled = (value == 1);
     }
+    else
+    {
+        *enabled = true;
+    }
     return err;
 }
 
@@ -965,6 +977,10 @@ esp_err_t um_nvs_get_ot_ch_setpoint(uint8_t *setpoint)
     if (err == ESP_OK)
     {
         *setpoint = (uint8_t)value;
+    }
+    else
+    {
+        *setpoint = 60;
     }
     return err;
 }
@@ -981,6 +997,10 @@ esp_err_t um_nvs_get_ot_dhw_setpoint(uint8_t *setpoint)
     {
         *setpoint = (uint8_t)value;
     }
+    else
+    {
+        *setpoint = 50;
+    }
     return err;
 }
 
@@ -995,6 +1015,10 @@ esp_err_t um_nvs_get_ot_dhw_enabled(bool *enabled)
     if (err == ESP_OK)
     {
         *enabled = (value == 1);
+    }
+    else
+    {
+        *enabled = true;
     }
     return err;
 }
@@ -1011,6 +1035,10 @@ esp_err_t um_nvs_get_ot_cool_enabled(bool *enabled)
     {
         *enabled = (value == 1);
     }
+    else
+    {
+        *enabled = false;
+    }
     return err;
 }
 
@@ -1025,6 +1053,10 @@ esp_err_t um_nvs_get_ot_modulation(uint8_t *modulation)
     if (err == ESP_OK)
     {
         *modulation = (uint8_t)value;
+    }
+    else
+    {
+        *modulation = 0;
     }
     return err;
 }
@@ -1041,6 +1073,10 @@ esp_err_t um_nvs_get_ot_outdoor_temp_comp(bool *enabled)
     {
         *enabled = (value == 1);
     }
+    else
+    {
+        *enabled = false;
+    }
     return err;
 }
 
@@ -1055,6 +1091,10 @@ esp_err_t um_nvs_get_ot_heating_curve_ratio(uint8_t *ratio)
     if (err == ESP_OK)
     {
         *ratio = (uint8_t)value;
+    }
+    else
+    {
+        *ratio = 0;
     }
     return err;
 }
