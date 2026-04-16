@@ -47,7 +47,7 @@ typedef struct
     char *category;
     um_capability_t capability;
     float value;
-    char *serial;
+    const char *serial;
 } um_mqtt_sensor_payload_t;
 
 // Коллбэк для обработки входящих сообщений

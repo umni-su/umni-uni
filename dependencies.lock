@@ -113,6 +113,16 @@ dependencies:
     - esp32s2
     - esp32s3
     version: 1.0.10
+  espressif/cjson:
+    component_hash: e788323270d90738662d66fffa910bfe1fba019bba087f01557e70c40485b469
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.7.19~2
   espressif/cmake_utilities:
     component_hash: 05165f30922b422b4b90c08845e6d449329b97370fbd06309803d8cb539d79e3
     dependencies:
@@ -124,7 +134,7 @@ dependencies:
       type: service
     version: 1.1.1
   espressif/ethernet_init:
-    component_hash: 9f7d29acf5fe32315579ddb6247388291cda555aa529409108c0ada0aa7cd99d
+    component_hash: b7303f1482091766b9b653ec8332775a9485f4df3c69141577de82847c4d2adf
     dependencies:
     - matches:
       - if: $CONFIG{ETHERNET_SPI_USE_CH390} == 1
@@ -234,7 +244,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.3.0
+    version: 1.2.0
   espressif/mdns:
     component_hash: 043f989435fd88f771c70507bfde854380c259a8fec8c0d60bcfd8714f16960e
     dependencies:
@@ -245,6 +255,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.10.0
+  espressif/mqtt:
+    component_hash: ffdad5659706b4dc14bc63f8eb73ef765efa015bf7e9adf71c813d52a2dc9342
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.3'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.0.0
   espressif/ntc_driver:
     component_hash: 5f9ac7ca2065523cf9d6d001820c3c70852cdbf7d40afa8ab5a807e827dfa5e9
     dependencies:
@@ -259,126 +279,138 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.2.0
+  espressif/w5500:
+    component_hash: e6e47022a1f509d1d1197652a554aea84a8cd4d99161061e187ecf4b78a7f6ca
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=6.0'
+    source:
+      registry_url: https://components.espressif.com
+      type: service
+    version: 1.0.1
   idf:
     source:
       type: idf
-    version: 5.5.2
+    version: 6.0.0
   sazanof/opentherm:
-    component_hash: e54ed2e0362b8b3c3fc855e1dada345da165cabda5954f50c75a65bb5ef6d461
+    component_hash: d9a8bd377796247baba62803c8f09d0cab8d0b9cd11c816b0f948aa19cf13cc1
     dependencies:
     - name: idf
       require: private
-      version: '>=5.2'
+      version: '>=6.0'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.7
+    version: 1.0.9
   sazanof/rf433_receiver:
-    component_hash: d9c323f8da6083c98f0f9a9ff4d3e9184560f001db27e60a79475c2d7ebeabb1
+    component_hash: ac8cd9fef37aaaf638fc30fa41edcfc8c815e5fa50ead2b08ddaf38f12b78ed2
     dependencies:
     - name: idf
       require: private
-      version: '>=5.2'
+      version: '>=6.0'
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.0
+    version: 1.0.1
   um_adc:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_adc
+      path: components\um_adc
       type: local
     version: 1.0.0
   um_buzzer:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_buzzer
+      path: components\um_buzzer
       type: local
     version: 1.0.0
   um_capabilities:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_capabilities
+      path: components\um_capabilities
       type: local
     version: 1.0.0
   um_dio:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_dio
+      path: components\um_dio
       type: local
     version: 1.0.0
   um_events:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_events
+      path: components\um_events
       type: local
     version: 1.0.0
   um_helpers:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_helpers
+      path: components\um_helpers
       type: local
     version: 1.0.0
   um_mqtt:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_mqtt
+      path: components\um_mqtt
       type: local
     version: 1.0.0
   um_ntc:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_ntc
+      path: components\um_ntc
       type: local
     version: 1.0.0
   um_nvs:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_nvs
+      path: components\um_nvs
       type: local
     version: 1.0.0
   um_onewire:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_onewire
+      path: components\um_onewire
       type: local
     version: 1.0.0
   um_opencollectors:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_opencollectors
+      path: components\um_opencollectors
       type: local
     version: 1.0.0
   um_opentherm:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_opentherm
+      path: components\um_opentherm
       type: local
     version: 1.0.0
   um_rf433:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_rf433
+      path: components\um_rf433
       type: local
     version: 1.0.0
   um_sd:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_sd
+      path: components\um_sd
       type: local
     version: 1.0.0
   um_storage:
     dependencies: []
     source:
-      path: C:\Develop\UMNI\Firmwares\umni-uni\components\um_storage
+      path: components\um_storage
       type: local
     version: 1.0.0
 direct_dependencies:
 - esp-idf-lib/ds18x20
 - esp-idf-lib/onewire
 - esp-idf-lib/pcf8574
+- espressif/cjson
 - espressif/ethernet_init
 - espressif/mdns
+- espressif/mqtt
 - espressif/ntc_driver
 - idf
 - sazanof/opentherm
@@ -398,6 +430,6 @@ direct_dependencies:
 - um_rf433
 - um_sd
 - um_storage
-manifest_hash: 596a1e3e37f5b64af1d9648cf7ed2e57bcfb310a3eb051f1bb3346b46a4a2548
+manifest_hash: b1bf1f5df512e4d198750cecb0edd106830c17bc93d7512a9184f2fee8f79acb
 target: esp32
-version: 2.0.0
+version: 3.0.0

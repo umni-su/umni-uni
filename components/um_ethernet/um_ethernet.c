@@ -3,15 +3,20 @@
 
 static const char *TAG = "ethernet_basic";
 
-static void eth_disconnect_event_handler()
+static void eth_disconnect_event_handler(
+    void *handler_args,
+    esp_event_base_t event_base,
+    int32_t event_id, void *event_data)
 {
     ESP_LOGW(TAG, "Ethernet disconnected");
-    um_event_publish(UMNI_EVENT_ETH_DISCONNECTED, NULL, sizeof(NULL), portMAX_DELAY);
+    // Если um_event_publish — ваша внутренняя функция, оставляем как есть
+    um_event_publish(UMNI_EVENT_ETH_DISCONNECTED, NULL, 0, portMAX_DELAY);
 }
 
 /* Event handler for IP_EVENT_ETH_GOT_IP */
 static void got_ip_event_handler(
-    void *arg, esp_event_base_t event_base,
+    void *arg,
+    esp_event_base_t event_base,
     int32_t event_id,
     void *event_data)
 {

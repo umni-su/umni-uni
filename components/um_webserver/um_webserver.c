@@ -125,7 +125,7 @@ static esp_err_t get_wrapper(httpd_req_t *req)
     return um_webserver_base_get_handler(req, ctx->get_data);
 }
 
-static esp_err_t post_wrapper(httpd_req_t *req)
+esp_err_t post_wrapper(httpd_req_t *req)
 {
     post_ctx_t *ctx = (post_ctx_t *)req->user_ctx;
     return um_webserver_base_post_handler(req, ctx->process_data);
@@ -136,7 +136,7 @@ static esp_err_t post_wrapper(httpd_req_t *req)
  * @param req HTTP запрос
  * @param get_data функция, которая заполняет data
  */
-static esp_err_t um_webserver_base_get_handler(
+esp_err_t um_webserver_base_get_handler(
     httpd_req_t *req,
     esp_err_t (*get_data)(httpd_req_t *, cJSON **))
 {
@@ -245,7 +245,7 @@ esp_err_t um_webserver_register_post(const char *uri,
  * @param req HTTP запрос
  * @param process_data функция, которая обрабатывает входные данные и создает выходные
  */
-static esp_err_t um_webserver_base_post_handler(
+esp_err_t um_webserver_base_post_handler(
     httpd_req_t *req,
     esp_err_t (*process_data)(httpd_req_t *, cJSON *input, cJSON **output))
 {

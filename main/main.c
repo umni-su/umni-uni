@@ -137,7 +137,7 @@ void um_main_send_config(um_capability_t cap)
 static void publish_sensor_data(
     um_capability_t cap, // тип сенсора (NTC1, ONEWIRE, и т.д.)
     char *topic,         // MQTT топик
-    char *serial,        // серийный номер (для 1-wire)
+    const char *serial,  // серийный номер (для 1-wire)
     double value,        // значение
     bool use_webhooks    // отправлять ли вебхуки
 )
@@ -234,8 +234,6 @@ void um_main_disconnected_handler(void *arg, esp_event_base_t base, int32_t id, 
 // Чтение сенсоров, отправка конфигураций
 void um_main_device_handler(void *args)
 {
-    um_mqtt_sensor_payload_t payload = {0};
-
     ESP_LOGI("SENSORS", "Start reading sensors");
     while (true)
     {

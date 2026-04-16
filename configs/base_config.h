@@ -19,10 +19,14 @@
 
 // Макрос для условной компиляции с ветвлением else
 #define IF_FEATURE_ENABLED(feature, code_if_enabled, code_if_disabled) \
-    do { \
-        if (CONFIG_##feature == 1) { \
-            code_if_enabled \
-        } else { \
-            code_if_disabled \
-        } \
-    } while(0)
+    do                                                                 \
+    {                                                                  \
+        if (CONFIG_##feature == 1)                                     \
+        {                                                              \
+            code_if_enabled                                            \
+        }                                                              \
+        else                                                           \
+        {                                                              \
+            code_if_disabled                                           \
+        }                                                              \
+    } while (0)

@@ -1,6 +1,11 @@
 dependencies:
   idf:
     version: '>=5.5.2'
+  espressif/cjson:
+    version: "*"
+  espressif/mqtt:
+    version: "*"
+    require: public
   um_capabilities:
     path: ../um_capabilities
     require: public

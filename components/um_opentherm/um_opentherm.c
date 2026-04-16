@@ -63,10 +63,7 @@ static bool last_ch2_en = false;
 static float last_ch_sp = 0;
 static float last_dhw_sp = 0;
 
-// Таймеры для периодических операций
-static TickType_t last_keepalive = 0;
 static TickType_t last_sensor_read = 0;
-static TickType_t last_config_read = 0;
 
 // Счетчик ошибок подряд
 static uint8_t consecutive_errors = 0;
@@ -494,7 +491,6 @@ void um_opentherm_control_task_handler(void *pvParameter)
     bool config_read_done = false;
     bool last_enabled_state = false;
     TickType_t last_nvs_check_time = xTaskGetTickCount();
-    TickType_t last_sensor_read = 0;
 
     ESP_LOGI(TAG, "OpenTherm control task started");
 
@@ -1047,7 +1043,7 @@ void um_ot_detect_supported_features(void)
     ESP_LOGI(TAG, "=== Detecting boiler supported features ===");
 
     // Быстрая проверка - есть ли котел?
-    unsigned long test = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_STATUS, 0));
+    esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_STATUS, 0));
     vTaskDelay(pdMS_TO_TICKS(50));
 
     if (esp_ot_get_last_response_status() != OT_STATUS_SUCCESS)

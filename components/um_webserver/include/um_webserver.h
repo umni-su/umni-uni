@@ -33,11 +33,11 @@ extern "C"
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
 
-    static esp_err_t um_webserver_base_get_handler(
+    esp_err_t um_webserver_base_get_handler(
         httpd_req_t *req,
         esp_err_t (*get_data)(httpd_req_t *, cJSON **));
 
-    static esp_err_t um_webserver_base_post_handler(
+    esp_err_t um_webserver_base_post_handler(
         httpd_req_t *req,
         esp_err_t (*process_data)(httpd_req_t *, cJSON *input, cJSON **output));
 

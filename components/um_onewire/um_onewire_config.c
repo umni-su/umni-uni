@@ -30,7 +30,7 @@ esp_err_t um_onewire_config_load()
     if (!um_storage_file_exists(ow_config_path))
     {
         ESP_LOGW(TAG, "Config file %s not found, creating default", ow_config_path);
-        return um_onewire_config_create_default(ow_config_path);
+        return um_onewire_config_create_default();
     }
 
     // Способ 2: Более безопасный
@@ -256,5 +256,5 @@ esp_err_t um_onewire_config_create_default()
 {
     // Создаем конфигурацию на основе найденных датчиков
     um_onewire_config_apply();
-    return um_onewire_config_save(ow_config_path);
+    return um_onewire_config_save();
 }

@@ -8,6 +8,8 @@ dependencies:
     version: "*"
   espressif/ntc_driver: 
     version: "*"
+  espressif/cjson:
+    version: "*"
 description: UMNI adc component
 license: MIT
 version: 1.0.0
