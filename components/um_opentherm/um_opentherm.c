@@ -17,11 +17,15 @@
 
 // Тайминги (в миллисекундах)
 #define OT_KEEPALIVE_INTERVAL_MS 200       // Keep-alive каждые 500 мс
-#define OT_SENSOR_READ_INTERVAL_MS 10000   // Сенсоры каждые 10 секунд
+#define OT_SENSOR_READ_INTERVAL_MS 60000   // Сенсоры каждые 60 секунд
 #define OT_CONFIG_READ_INTERVAL_MS 3600000 // Конфигурация каждый час
 #define OT_MAIN_LOOP_DELAY_MS 300          // Основная задержка цикла
 #define OT_ERROR_RETRY_DELAY_MS 5000       // Задержка при ошибке
 #define OT_COMMAND_TIMEOUT_MS 100          // Таймаут команды
+
+static bool communication_established = false;
+static uint8_t comm_fail_count = 0;
+#define COMM_FAIL_LIMIT 3
 
 static uint8_t targetDHWTemp = 59;
 static uint8_t targetCHTemp = 60;
@@ -89,8 +93,14 @@ void um_opentherm_event_handler(void *handler_arg, esp_event_base_t base, int32_
 static void um_ot_read_slave_configuration(void)
 {
     ot_data.slave_config = esp_ot_get_slave_configuration();
+    taskYIELD();
+    vTaskDelay(pdMS_TO_TICKS(10));
     ot_data.slave_ot_version = esp_ot_get_slave_ot_version();
+    taskYIELD();
+    vTaskDelay(pdMS_TO_TICKS(10));
     ot_data.slave_product_version = esp_ot_get_slave_product_version();
+    taskYIELD();
+    vTaskDelay(pdMS_TO_TICKS(10));
 
     ESP_LOGI(TAG, "====== MAIN FUNCTIONS ======");
     ESP_LOGI(TAG, "CONTROL TYPE %s", ot_data.slave_config.control_type == 0 ? "ON/OFF" : "MODULATING");
@@ -110,36 +120,54 @@ static void um_ot_read_slave_configuration(void)
  */
 static void um_ot_read_sensors(void)
 {
-    // Чтение основных сенсоров
+    // Если связь с котлом не установлена - пропускаем чтение
+    if (!communication_established)
+    {
+        ESP_LOGD(TAG, "Skipping sensor read - no communication");
+        return;
+    }
+
+    // Чтение основных сенсоров с задержками между вызовами
     ot_data.boiler_temperature = esp_ot_get_boiler_temperature();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(20)); // Увеличена задержка
+    taskYIELD();
 
     ot_data.return_temperature = esp_ot_get_return_temperature();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(20));
+    taskYIELD();
 
     if (ot_data.slave_config.dhw_present)
     {
         ot_data.dhw_temperature = esp_ot_get_dhw_temperature();
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
+        taskYIELD();
+
         ot_data.dhw_setpoint = esp_ot_get_dhw_setpoint();
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
+        taskYIELD();
+
         ot_data.flow_rate = esp_ot_get_flow_rate();
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
+        taskYIELD();
     }
 
     ot_data.modulation = esp_ot_get_modulation();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(20));
+    taskYIELD();
 
     ot_data.pressure = esp_ot_get_pressure();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(20));
+    taskYIELD();
 
     ot_data.outside_temperature = esp_ot_get_outside_temperature();
-    vTaskDelay(pdMS_TO_TICKS(10));
+    vTaskDelay(pdMS_TO_TICKS(20));
+    taskYIELD();
 
     if (ot_data.slave_config.ch2_present)
     {
         ot_data.flow_rate_ch2 = esp_ot_get_ch2_flow();
-        vTaskDelay(pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(20));
+        taskYIELD();
     }
 
     ESP_LOGI(TAG, "=== OPENTHERM STATUS ===");
@@ -208,6 +236,8 @@ static void um_ot_read_configuration(void)
  */
 static bool um_ot_send_master_status(void)
 {
+    vTaskDelay(pdMS_TO_TICKS(20));
+
     unsigned long response = esp_ot_set_boiler_status(
         enableCentralHeating,
         enableHotWater,
@@ -219,7 +249,21 @@ static bool um_ot_send_master_status(void)
 
     if (resp_status == OT_STATUS_SUCCESS && esp_ot_is_valid_response(response))
     {
-        // Обновляем статусные флаги из ответа
+        // Связь установлена
+        if (!communication_established)
+        {
+            communication_established = true;
+            ot_data.adapter_success = true;
+            ESP_LOGI(TAG, "Communication with boiler established");
+
+            // for (int i = 0; i < 3; i++)
+            //{
+            um_ot_read_slave_configuration();
+            vTaskDelay(pdMS_TO_TICKS(50));
+            //}
+        }
+        comm_fail_count = 0;
+
         ot_data.central_heating_active = esp_ot_is_central_heating_active(response);
         ot_data.hot_water_active = esp_ot_is_hot_water_active(response);
         ot_data.flame_on = esp_ot_is_flame_on(response);
@@ -227,7 +271,19 @@ static bool um_ot_send_master_status(void)
         return true;
     }
 
-    ESP_LOGW(TAG, "Failed to send master status, response: %d", resp_status);
+    // Логируем только первые ошибки
+    if (comm_fail_count < COMM_FAIL_LIMIT)
+    {
+        ESP_LOGW(TAG, "Failed to send master status, response: %d", resp_status);
+    }
+    else if (comm_fail_count == COMM_FAIL_LIMIT)
+    {
+        ESP_LOGW(TAG, "No boiler detected, entering low-communication mode");
+        communication_established = false;
+        ot_data.adapter_success = false;
+    }
+
+    comm_fail_count++;
     return false;
 }
 
@@ -490,6 +546,13 @@ void um_opentherm_control_task_handler(void *pvParameter)
         // ============================================
         if (first_run || !config_read_done)
         {
+            if (!um_ot_send_master_status())
+            {
+                ESP_LOGW(TAG, "Boiler not responding during init. Retry in 5s...");
+                vTaskDelay(pdMS_TO_TICKS(5000));
+                continue; // Выходим из цикла и пробуем снова через 5 сек
+            }
+
             consecutive_errors = 0;
 
             ESP_LOGI(TAG, "Reading boiler configuration (3 attempts)...");
@@ -501,14 +564,13 @@ void um_opentherm_control_task_handler(void *pvParameter)
             }
 
             um_ot_read_configuration();
+            vTaskDelay(pdMS_TO_TICKS(50));
             um_ot_detect_supported_features();
+            vTaskDelay(pdMS_TO_TICKS(50));
 
             config_read_done = true;
             first_run = false;
 
-            vTaskDelay(pdMS_TO_TICKS(100));
-            um_ot_send_master_status();
-            vTaskDelay(pdMS_TO_TICKS(OT_COMMAND_TIMEOUT_MS));
             um_ot_send_ch_setpoint(targetCHTemp);
             vTaskDelay(pdMS_TO_TICKS(OT_COMMAND_TIMEOUT_MS));
 
@@ -524,21 +586,37 @@ void um_opentherm_control_task_handler(void *pvParameter)
         // ============================================
         // 3. ОСНОВНОЙ ЦИКЛ: отправляем статус master КАЖДЫЙ ЦИКЛ
         // ============================================
-        um_ot_send_master_status();
+        if (!um_ot_send_master_status())
+        {
+            // Если связи нет (вернулся false/timeout)
+            ESP_LOGW(TAG, "Boiler not responding. Sleeping for 5 seconds...");
+
+            // Вместо того чтобы сразу долбиться снова,
+            // засыпаем на 5 секунд. Это полностью разгрузит CPU.
+            vTaskDelay(pdMS_TO_TICKS(5000));
+
+            // Можно пропустить остальную часть цикла
+            continue;
+        }
+        vTaskDelay(pdMS_TO_TICKS(10));
 
         // ============================================
         // 4. Применение изменений параметров (уставки)
         // ============================================
         um_ot_apply_pending_changes();
+        vTaskDelay(pdMS_TO_TICKS(10));
 
         // ============================================
         // 5. Чтение сенсоров (раз в 10 секунд)
         // ============================================
         TickType_t now = xTaskGetTickCount();
-        if ((now - last_sensor_read) >= pdMS_TO_TICKS(OT_SENSOR_READ_INTERVAL_MS))
+        if (communication_established)
         {
-            um_ot_read_sensors();
-            last_sensor_read = now;
+            if ((now - last_sensor_read) >= pdMS_TO_TICKS(OT_SENSOR_READ_INTERVAL_MS))
+            {
+                um_ot_read_sensors();
+                last_sensor_read = now;
+            }
         }
 
         // ============================================
@@ -708,7 +786,7 @@ void um_ot_init()
         TAG,
         configMINIMAL_STACK_SIZE * 6, // Увеличен стек
         NULL,
-        10, // Приоритет
+        1, // Приоритет
         &ot_handle,
         1); // Ядро 1
 
@@ -968,50 +1046,76 @@ void um_ot_detect_supported_features(void)
 {
     ESP_LOGI(TAG, "=== Detecting boiler supported features ===");
 
+    // Быстрая проверка - есть ли котел?
+    unsigned long test = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_STATUS, 0));
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    if (esp_ot_get_last_response_status() != OT_STATUS_SUCCESS)
+    {
+        ESP_LOGW(TAG, "Boiler not responding, skipping feature detection");
+        // Устанавливаем значения по умолчанию (false)
+        memset(&ot_data.supported, 0, sizeof(ot_data.supported));
+        return;
+    }
+
     unsigned long response;
     open_therm_message_type_t msg_type;
 
     // 1. Проверяем модуляцию (ID=17)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_REL_MOD_LEVEL, 0));
+    vTaskDelay(pdMS_TO_TICKS(50));
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.modulation = (msg_type != OT_UNKNOWN_DATA_ID);
     ESP_LOGI(TAG, "Modulation read: %s", ot_data.supported.modulation ? "SUPPORTED" : "NOT supported");
 
     // 2. Проверяем запись макс. модуляции (ID=14)
     response = esp_ot_send_request(esp_ot_build_request(OT_WRITE_DATA, MSG_ID_MAX_REL_MOD_LEVEL_SETTING, 50));
+    vTaskDelay(pdMS_TO_TICKS(50));
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.modulation_write = (msg_type != OT_UNKNOWN_DATA_ID && msg_type != OT_DATA_INVALID);
     ESP_LOGI(TAG, "Modulation write: %s", ot_data.supported.modulation_write ? "SUPPORTED" : "NOT supported");
 
     // 3. Проверяем кривую нагрева (ID=58)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_OTC_CURVE_RATIO, 0));
+    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
+    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.heat_curve = (msg_type != OT_UNKNOWN_DATA_ID);
     ESP_LOGI(TAG, "Heat curve read: %s", ot_data.supported.heat_curve ? "SUPPORTED" : "NOT supported");
 
     // 4. Проверяем запись кривой нагрева
     response = esp_ot_send_request(esp_ot_build_request(OT_WRITE_DATA, MSG_ID_OTC_CURVE_RATIO, 50 << 8));
+    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
+    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.heat_curve_write = (msg_type != OT_UNKNOWN_DATA_ID && msg_type != OT_DATA_INVALID);
     ESP_LOGI(TAG, "Heat curve write: %s", ot_data.supported.heat_curve_write ? "SUPPORTED" : "NOT supported");
 
     // 5. Проверяем датчик наружной температуры (ID=27)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_TOUTSIDE, 0));
+    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
+    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.outside_temp = (msg_type != OT_UNKNOWN_DATA_ID);
 
     // 6. Проверяем датчик обратки (ID=28)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_TRET, 0));
+    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
+    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.return_temp = (msg_type != OT_UNKNOWN_DATA_ID);
 
     // 7. Проверяем давление (ID=18)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_CH_PRESSURE, 0));
+    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
+    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.pressure = (msg_type != OT_UNKNOWN_DATA_ID);
 
     // 8. Проверяем расходомер DHW (ID=19)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_DHW_FLOW_RATE, 0));
+    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
+    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.flow_rate = (msg_type != OT_UNKNOWN_DATA_ID);
 

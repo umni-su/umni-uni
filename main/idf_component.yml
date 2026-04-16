@@ -1,4 +1,4 @@
 dependencies:
   idf:
     version: '>=5.5.2'
-  espressif/mdns: '*'
+  espressif/mdns: '1.10.0'

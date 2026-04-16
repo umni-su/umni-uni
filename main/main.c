@@ -107,6 +107,9 @@ void um_main_send_config(um_capability_t cap)
     case UM_CAP_RF433:
         config_str = um_rf433_config_read();
         break;
+    case UM_CAP_OPENTHERM:
+        config_str = um_ot_get_status_json();
+        break;
 
     default:
         break;
@@ -238,19 +241,28 @@ void um_main_device_handler(void *args)
     {
 #if UM_FEATURE_ENABLED(MQTT)
         um_mqtt_register_device(UMNI_DEVICE);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 #endif
 #if UM_FEATURE_ENABLED(INPUTS) && UM_FEATURE_ENABLED(MQTT)
         um_main_send_config(UM_CAP_INPUTS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 #endif
 #if UM_FEATURE_ENABLED(OUTPUTS) && UM_FEATURE_ENABLED(MQTT)
         um_main_send_config(UM_CAP_OUTPUTS);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 #endif
 #if UM_FEATURE_ENABLED(RF433) && UM_FEATURE_ENABLED(MQTT)
         um_main_send_config(UM_CAP_RF433);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
+#endif
+#if UM_FEATURE_ENABLED(OPENTHERM) && UM_FEATURE_ENABLED(MQTT)
+        um_main_send_config(UM_CAP_OPENTHERM);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 #endif
 #if UM_FEATURE_ENABLED(ONEWIRE)
 #if UM_FEATURE_ENABLED(MQTT)
         um_main_send_config(UM_CAP_ONEWIRE);
+        vTaskDelay(10000 / portTICK_PERIOD_MS);
 #endif
         const um_onewire_state_t *onewire_state = um_onewire_get_state();
         if (onewire_state->initialized)

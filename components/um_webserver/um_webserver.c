@@ -481,9 +481,9 @@ static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON *input, cJS
 
             ESP_LOGI(REST_TAG, "Setting output %d to %d", idx, lvl);
 
-            if (idx >= 0 && idx < 8 && (lvl == 0 || lvl == 1))
+            if (idx > 0 && idx <= 8 && (lvl == 0 || lvl == 1))
             {
-                um_dio_set_output(idx, lvl);
+                um_dio_set_output(idx - 1, lvl); // fix
             }
             else
             {

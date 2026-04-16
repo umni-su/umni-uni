@@ -88,7 +88,7 @@ dependencies:
     - esp32s3
     version: 1.1.0
   esp-idf-lib/pcf8574:
-    component_hash: 2a140534f8867ab4ae8a9f6bcb9deffa68031b410b397eadc2956629e5f4de4d
+    component_hash: 59283ee5b234c85c3e217c45c4d2bebe6d55b2371d8a85c97d5faefe3943e82f
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -112,7 +112,7 @@ dependencies:
     - esp32p4
     - esp32s2
     - esp32s3
-    version: 1.0.8
+    version: 1.0.10
   espressif/cmake_utilities:
     component_hash: 05165f30922b422b4b90c08845e6d449329b97370fbd06309803d8cb539d79e3
     dependencies:
@@ -124,7 +124,7 @@ dependencies:
       type: service
     version: 1.1.1
   espressif/ethernet_init:
-    component_hash: b7303f1482091766b9b653ec8332775a9485f4df3c69141577de82847c4d2adf
+    component_hash: 9f7d29acf5fe32315579ddb6247388291cda555aa529409108c0ada0aa7cd99d
     dependencies:
     - matches:
       - if: $CONFIG{ETHERNET_SPI_USE_CH390} == 1
@@ -234,9 +234,9 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.2.0
+    version: 1.3.0
   espressif/mdns:
-    component_hash: 29e47564b1a7ee778135e17fbbf2a2773f71c97ebabfe626c8eda7c958a7ad16
+    component_hash: 043f989435fd88f771c70507bfde854380c259a8fec8c0d60bcfd8714f16960e
     dependencies:
     - name: idf
       require: private
@@ -244,7 +244,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.9.1
+    version: 1.10.0
   espressif/ntc_driver:
     component_hash: 5f9ac7ca2065523cf9d6d001820c3c70852cdbf7d40afa8ab5a807e827dfa5e9
     dependencies:
@@ -264,7 +264,7 @@ dependencies:
       type: idf
     version: 5.5.2
   sazanof/opentherm:
-    component_hash: 1130af874a7a52ce210fc15422f05cd1e18e052dd43b1413e42932fde0ddc48e
+    component_hash: e54ed2e0362b8b3c3fc855e1dada345da165cabda5954f50c75a65bb5ef6d461
     dependencies:
     - name: idf
       require: private
@@ -272,7 +272,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.5
+    version: 1.0.7
   sazanof/rf433_receiver:
     component_hash: d9c323f8da6083c98f0f9a9ff4d3e9184560f001db27e60a79475c2d7ebeabb1
     dependencies:
@@ -398,6 +398,6 @@ direct_dependencies:
 - um_rf433
 - um_sd
 - um_storage
-manifest_hash: c7d801c35895cf2ac5c2c9c3b89ed393eb8b4937f1dc070b3736da004b9a3530
+manifest_hash: 596a1e3e37f5b64af1d9648cf7ed2e57bcfb310a3eb051f1bb3346b46a4a2548
 target: esp32
 version: 2.0.0
