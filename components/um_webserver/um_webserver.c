@@ -4,6 +4,7 @@
 
 #include "base_config.h"
 #include "um_nvs.h"
+#include "um_store.h"
 #include "um_helpers.h"
 #include "um_webserver.h"
 #include "um_capabilities.h"
@@ -39,6 +40,7 @@
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
 #include "um_opencollectors.h"
+#include "um_opencollectors_config.h"
 #endif
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
@@ -357,7 +359,7 @@ esp_err_t um_webserver_base_post_handler(
 
 static esp_err_t get_systeminfo(httpd_req_t *req, cJSON **data)
 {
-    return um_helperts_get_systeminfo(data);
+    return um_helpers_get_systeminfo(data);
 }
 
 static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
@@ -408,6 +410,14 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     {
 #if UM_FEATURE_ENABLED(INPUTS)
         config_str = um_dio_config_get_outputs_json();
+#else
+        return ESP_ERR_NOT_SUPPORTED;
+#endif
+    }
+    else if (strcmp(section, "opencollectors") == 0)
+    {
+#if UM_FEATURE_ENABLED(OPENCOLLECTORS)
+        config_str = um_oc_config_get_json();
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif
@@ -474,10 +484,10 @@ static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON *input, cJS
     if (strcmp(mode->valuestring, "outputs") == 0)
     {
 #if UM_FEATURE_ENABLED(OUTPUTS)
-        if (cJSON_IsNumber(level) && cJSON_IsNumber(index) && index->valueint >= 0)
+        if (cJSON_IsBool(level) && cJSON_IsNumber(index) && index->valueint >= 0)
         {
             int idx = index->valueint;
-            int lvl = level->valueint;
+            int lvl = cJSON_IsTrue(level) ? 1 : 0;
 
             ESP_LOGI(REST_TAG, "Setting output %d to %d", idx, lvl);
 
@@ -496,11 +506,12 @@ static esp_err_t um_webserver_on_off_handler(httpd_req_t *req, cJSON *input, cJS
     else if (strcmp(mode->valuestring, "opencollectors") == 0)
     {
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
-        if (cJSON_IsNumber(level) && cJSON_IsNumber(index) && index->valueint >= 0)
+        if (cJSON_IsBool(level) && cJSON_IsNumber(index) && index->valueint >= 0)
         {
+            int lvl = cJSON_IsTrue(level) ? 1 : 0;
             return um_opencollectors_set(
                 index->valueint,
-                level->valueint);
+                lvl);
         }
 #endif
     }
@@ -539,14 +550,19 @@ static esp_err_t um_webserver_beep_handler(httpd_req_t *req, cJSON *input, cJSON
 static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSON **output)
 {
     cJSON *capability = cJSON_GetObjectItem(input, "capability");
+    cJSON *result = NULL;
+    cJSON *history = NULL;
     cJSON *data = NULL;
     if (cJSON_IsString(capability))
     {
         // получение настроек или значений согласно capability
         if (um_capabilities_has_by_name(capability->valuestring))
         {
+
+            um_store_t *history_store = um_store_find_store(capability->valuestring);
             // функция доступна
             um_capability_t cap = um_capabilities_get_by_name(capability->valuestring);
+            result = cJSON_CreateObject();
             if (cap == UM_CAP_OPENTHERM)
             {
                 //
@@ -554,12 +570,53 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
                 data = cJSON_Parse(ot_json);
                 free(ot_json);
             }
-            *output = data;
+            else if (cap == UM_CAP_NTC1)
+            {
+                data = cJSON_CreateObject();
+                float temp1 = 0;
+                um_ntc_get_last_temperature(UM_NTC_CHANNEL_1, &temp1);
+                cJSON_AddNumberToObject(data, "value", temp1);
+            }
+            else if (cap == UM_CAP_NTC2)
+            {
+                data = cJSON_CreateObject();
+                float temp2 = 0;
+                um_ntc_get_last_temperature(UM_NTC_CHANNEL_2, &temp2);
+                cJSON_AddNumberToObject(data, "value", temp2);
+            }
+            else if (cap == UM_CAP_AI1)
+            {
+                data = cJSON_CreateObject();
+                int ai1 = 0;
+                um_adc_get_last_raw(UM_ADC_CHANNEL_1, &ai1);
+                cJSON_AddNumberToObject(data, "value", ai1);
+            }
+            else if (cap == UM_CAP_AI2)
+            {
+                data = cJSON_CreateObject();
+                int ai2 = 0;
+                um_adc_get_last_raw(UM_ADC_CHANNEL_2, &ai2);
+                cJSON_AddNumberToObject(data, "value", ai2);
+            }
+
+            cJSON_AddItemToObject(result, "state", data);
+
+            if (history_store != NULL)
+            {
+                char *json_history = um_store_to_json(history_store);
+
+                history = cJSON_Parse(json_history);
+                cJSON_AddItemToObject(result, "history", history);
+
+                free(json_history);
+            }
+
+            *output = result;
             return ESP_OK;
         }
     }
 
-    *output = data;
+    *output = result;
     return ESP_ERR_INVALID_ARG;
 }
 
@@ -875,7 +932,6 @@ static esp_err_t um_webserver_static_handler(httpd_req_t *req)
     }
 
     set_content_type_from_file(req, filepath);
-    printf(filepath);
 
     char *chunk = rest_context->scratch;
     ssize_t read_bytes;
@@ -936,6 +992,11 @@ esp_err_t um_webserver_start(void)
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 20;
     config.stack_size = 8192;
+    config.max_open_sockets = 7;      // Максимум открытых сокетов (по умолчанию 7)
+    config.lru_purge_enable = true;   // Включить LRU очистку старых соединений
+    config.recv_wait_timeout = 5;     // Таймаут приема (сек)
+    config.send_wait_timeout = 5;     // Таймаут отправки (сек)
+    config.keep_alive_enable = false; // Отключить Keep-Alive (освобождает сокеты)
 
     // Запуск сервера
     esp_err_t ret = httpd_start(&server, &config);

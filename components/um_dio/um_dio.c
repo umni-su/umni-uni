@@ -45,7 +45,6 @@ static QueueHandle_t input_queue = NULL;
 
 /* Input mapping from config index to port index */
 const uint8_t input_index_map[] = {
-    0, // Not used (index 0)
     CONFIG_UM_CFG_INP1_INDEX,
     CONFIG_UM_CFG_INP2_INDEX,
     CONFIG_UM_CFG_INP3_INDEX,
@@ -56,7 +55,6 @@ const uint8_t input_index_map[] = {
 
 /* Output mapping from config index to port index */
 const uint8_t output_index_map[] = {
-    0, // Not used (index 0)
     CONFIG_UM_CFG_OUT1_INDEX,
     CONFIG_UM_CFG_OUT2_INDEX,
     CONFIG_UM_CFG_OUT3_INDEX,
@@ -104,20 +102,20 @@ static void input_monitor_task(void *arg)
                 {
                     uint8_t changed = input_data ^ new_state;
                     /* Log changes for each input */
-                    for (uint8_t i = 1; i <= 6; i++)
+                    for (uint8_t i = 0; i <= 5; i++)
                     {
 #if UM_FEATURE_ENABLED(INPUTS)
-                        if (changed & (1 << (input_index_map[i] - 1)))
+                        if (changed & (1 << (input_index_map[i])))
                         {
-                            bool old_state = (input_data >> (input_index_map[i] - 1)) & 0x01;
-                            bool new_bit = (new_state >> (input_index_map[i] - 1)) & 0x01;
+                            bool old_state = (input_data >> (input_index_map[i])) & 0x01;
+                            bool new_bit = (new_state >> (input_index_map[i])) & 0x01;
 
-                            ESP_LOGI(TAG, "Input %d changed: %d -> %d",
-                                     i, old_state, new_bit);
+                            ESP_LOGI(TAG, "Input %d (iter-%d) changed: %d -> %d",
+                                     input_index_map[i], i + 1, old_state, new_bit);
 
                             int state = (int)new_bit;
 #if UM_FEATURE_ENABLED(MQTT)
-                            um_capability_t cap = (um_capability_t)(UM_CAP_INP1 + i - 1); // тк объявлены друг за другом!
+                            um_capability_t cap = (um_capability_t)(UM_CAP_INP1 + i); // тк объявлены друг за другом!
                             um_mqtt_sensor_payload_t payload = {
                                 .category = UM_MQTT_TOPIC_INPUTS,
                                 .capability = cap,
@@ -282,11 +280,12 @@ static uint8_t get_output_bit_position(uint8_t output_idx)
 
 static uint8_t get_input_bit_position(uint8_t input_idx)
 {
-    if (input_idx >= sizeof(input_index_map))
-    {
-        return 0;
-    }
-    return input_index_map[input_idx] - 1; // Convert to 0-based bit position
+    // if (input_idx >= sizeof(input_index_map))
+    // {
+    //     return 0;
+    // }
+    // return input_index_map[input_idx]; // Convert to 0-based bit position
+    return input_idx;
 }
 
 /* Добавьте функцию инициализации i2cdev: */
@@ -304,6 +303,27 @@ static esp_err_t init_i2cdev(void)
 
     ESP_LOGI(TAG, "i2cdev initialized successfully");
     return ESP_OK;
+}
+
+uint8_t um_dio_get_input_index(uint8_t number)
+{
+    switch (number)
+    {
+    case 0:
+        return CONFIG_UM_CFG_INP1_INDEX;
+    case 1:
+        return CONFIG_UM_CFG_INP2_INDEX;
+    case 2:
+        return CONFIG_UM_CFG_INP3_INDEX;
+    case 3:
+        return CONFIG_UM_CFG_INP4_INDEX;
+    case 4:
+        return CONFIG_UM_CFG_INP5_INDEX;
+    case 5:
+        return CONFIG_UM_CFG_INP6_INDEX;
+    default:
+        return 0;
+    }
 }
 
 /* Public API implementation */
@@ -354,7 +374,7 @@ esp_err_t um_dio_init(void)
 esp_err_t um_dio_get_input(uint8_t input_idx, bool *state)
 {
 #if UM_FEATURE_ENABLED(INPUTS)
-    if (input_idx < 1 || input_idx > 6)
+    if (input_idx > 5)
     {
         ESP_LOGE(TAG, "Invalid input index: %d", input_idx);
         return ESP_ERR_INVALID_ARG;
@@ -364,27 +384,27 @@ esp_err_t um_dio_get_input(uint8_t input_idx, bool *state)
     switch (input_idx)
     {
 #if UM_FEATURE_ENABLED(INP1)
-    case 1:
+    case CONFIG_UM_CFG_INP1_INDEX:
         break;
 #endif
 #if UM_FEATURE_ENABLED(INP2)
-    case 2:
+    case CONFIG_UM_CFG_INP2_INDEX:
         break;
 #endif
 #if UM_FEATURE_ENABLED(INP3)
-    case 3:
+    case CONFIG_UM_CFG_INP3_INDEX:
         break;
 #endif
 #if UM_FEATURE_ENABLED(INP4)
-    case 4:
+    case CONFIG_UM_CFG_INP4_INDEX:
         break;
 #endif
 #if UM_FEATURE_ENABLED(INP5)
-    case 5:
+    case CONFIG_UM_CFG_INP5_INDEX:
         break;
 #endif
 #if UM_FEATURE_ENABLED(INP6)
-    case 6:
+    case CONFIG_UM_CFG_INP6_INDEX:
         break;
 #endif
     default:
@@ -533,22 +553,19 @@ esp_err_t um_dio_set_output(um_do_port_index_t output_idx, um_do_level_t level)
 #endif
 }
 
-esp_err_t um_dio_get_output(uint8_t output_idx, bool *state)
+esp_err_t um_dio_get_output(uint8_t output_idx, bool *state) // output_idx: 0-7
 {
 #if UM_FEATURE_ENABLED(OUTPUTS)
-    if (output_idx < 1 || output_idx > 8)
+    if (output_idx > 7) // проверка на 0-7
     {
         ESP_LOGE(TAG, "Invalid output index: %d", output_idx);
         return ESP_ERR_INVALID_ARG;
     }
 
-    uint8_t bit_pos = get_output_bit_position(output_idx);
-    *state = (output_data >> bit_pos) & 0x01;
+    // ПРЯМОЕ использование - без всяких маппингов!
+    *state = !((output_data >> output_idx) & 0x01);
 
     return ESP_OK;
-#else
-    ESP_LOGE(TAG, "Outputs feature not enabled");
-    return ESP_ERR_NOT_SUPPORTED;
 #endif
 }
 

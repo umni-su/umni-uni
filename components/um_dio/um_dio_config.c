@@ -13,57 +13,43 @@ static um_dio_config_t dio_config = {
     .input_count = 0,
     .output_count = 0};
 
-// Вспомогательная функция для проверки доступности входов/выходов
+// Внешние массивы маппинга из um_dio.c
+extern const uint8_t input_index_map[];  // config_index -> port_index
+extern const uint8_t output_index_map[]; // config_index -> port_index
+
 static void update_counts_from_capabilities(void)
 {
     dio_config.input_count = 0;
     dio_config.output_count = 0;
 
-    // Проверяем входы (1-6)
-    for (int i = 1; i <= 6; i++)
+    // Для входов - СОХРАНЯЕМ ПОРЯДОК config_index
+    // Не перебираем все возможные индексы, а используем маппинг
+    for (int config_idx = 1; config_idx <= 6; config_idx++)
     {
-        um_capability_t cap = UM_CAP_INP1 + (i - 1);
+        um_capability_t cap = UM_CAP_INP1 + (config_idx - 1);
         if (um_capabilities_has(cap))
         {
+            int array_pos = dio_config.input_count;
+            dio_config.inputs[array_pos].config_index = config_idx;
+            // port_index берем из глобального маппинга
+            dio_config.inputs[array_pos].port_index = input_index_map[config_idx - 1];
             dio_config.input_count++;
-            // Сохраняем маппинг
-            dio_config.inputs[i - 1].config_index = i;
-            dio_config.inputs[i - 1].port_index = input_index_map[i];
         }
     }
 
-    // Проверяем выходы (1-8)
-    for (int i = 1; i <= 8; i++)
+    // Аналогично для выходов
+    for (int config_idx = 1; config_idx <= 8; config_idx++)
     {
-        um_capability_t cap = UM_CAP_OUT1 + (i - 1);
+        um_capability_t cap = UM_CAP_OUT1 + (config_idx - 1);
         if (um_capabilities_has(cap))
         {
+            int array_pos = dio_config.output_count;
+            dio_config.outputs[array_pos].config_index = config_idx;
+            dio_config.outputs[array_pos].port_index = output_index_map[config_idx - 1];
             dio_config.output_count++;
-            // Сохраняем маппинг
-            dio_config.outputs[i - 1].config_index = i;
-            dio_config.outputs[i - 1].port_index = output_index_map[i];
         }
-    }
-
-    ESP_LOGI(TAG, "Capabilities: %d inputs, %d outputs",
-             dio_config.input_count, dio_config.output_count);
-
-    // Логируем маппинг для отладки
-    for (int i = 0; i < dio_config.input_count; i++)
-    {
-        ESP_LOGD(TAG, "Input config %d -> port %d",
-                 dio_config.inputs[i].config_index,
-                 dio_config.inputs[i].port_index);
-    }
-
-    for (int i = 0; i < dio_config.output_count; i++)
-    {
-        ESP_LOGD(TAG, "Output config %d -> port %d",
-                 dio_config.outputs[i].config_index,
-                 dio_config.outputs[i].port_index);
     }
 }
-
 // Поиск входа по конфигурационному индексу
 static um_dio_config_item_t *find_input_by_config_index(uint8_t config_index)
 {
@@ -367,12 +353,34 @@ char *um_dio_config_get_inputs_json(void)
     // Добавляем все входы
     for (int i = 0; i < dio_config.input_count; i++)
     {
-        cJSON *item = cJSON_CreateObject();
-        cJSON_AddNumberToObject(item, "index", dio_config.inputs[i].config_index);
-        cJSON_AddNumberToObject(item, "port", dio_config.inputs[i].port_index);
-        cJSON_AddStringToObject(item, "label", dio_config.inputs[i].label);
-        cJSON_AddBoolToObject(item, "active", dio_config.inputs[i].active);
-        cJSON_AddItemToArray(inputs_array, item);
+        // Получаем целевой номер порта, который хотим видеть на этом месте в JSON (2, 3, 1, 0, 5, 4)
+        uint8_t target_port = um_dio_get_input_index(i);
+
+        // Ищем в массиве inputs тот элемент, у которого port_index == target_port
+        int found_idx = -1;
+        for (int j = 0; j < dio_config.input_count; j++)
+        {
+            if (dio_config.inputs[j].port_index == target_port)
+            {
+                found_idx = j;
+                break;
+            }
+        }
+
+        if (found_idx != -1)
+        {
+            bool state = false;
+            // Работаем с найденным элементом
+            um_dio_get_input(target_port, &state);
+
+            cJSON *item = cJSON_CreateObject();
+            cJSON_AddNumberToObject(item, "index", dio_config.inputs[found_idx].config_index);
+            cJSON_AddNumberToObject(item, "port", dio_config.inputs[found_idx].port_index);
+            cJSON_AddStringToObject(item, "label", dio_config.inputs[found_idx].label);
+            cJSON_AddBoolToObject(item, "active", dio_config.inputs[found_idx].active);
+            cJSON_AddBoolToObject(item, "state", state);
+            cJSON_AddItemToArray(inputs_array, item);
+        }
     }
 
     cJSON_AddItemToObject(root, "inputs", inputs_array);
@@ -392,12 +400,15 @@ char *um_dio_config_get_outputs_json(void)
     // Добавляем все выходы
     for (int i = 0; i < dio_config.output_count; i++)
     {
+        bool state = false;
+        um_dio_get_output(dio_config.outputs[i].port_index, &state);
         cJSON *item = cJSON_CreateObject();
         cJSON_AddNumberToObject(item, "index", dio_config.outputs[i].config_index);
         cJSON_AddNumberToObject(item, "port", dio_config.outputs[i].port_index);
         cJSON_AddStringToObject(item, "label", dio_config.outputs[i].label);
         cJSON_AddBoolToObject(item, "active", dio_config.outputs[i].active);
         cJSON_AddNumberToObject(item, "default_state", dio_config.outputs[i].default_state);
+        cJSON_AddBoolToObject(item, "state", state);
         cJSON_AddItemToArray(outputs_array, item);
     }
 

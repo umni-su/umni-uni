@@ -1,0 +1,11 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+  espressif/cjson:
+    version: "*"
+  um_helpers:
+    path: ../um_helpers
+    version: "*"
+description: UMNI store component
+license: MIT
+version: 1.0.0

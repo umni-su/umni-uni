@@ -110,6 +110,11 @@ extern "C"
      */
     esp_err_t um_dio_deinit(void);
 
+    /**
+     *
+     */
+    uint8_t um_dio_get_input_index(uint8_t number);
+
 #ifdef __cplusplus
 }
 #endif

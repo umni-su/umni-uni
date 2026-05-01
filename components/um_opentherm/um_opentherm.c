@@ -219,7 +219,7 @@ static void um_ot_read_configuration(void)
     vTaskDelay(pdMS_TO_TICKS(10));
 
     // Чтение максимальной уставки CH
-    ot_data.ch_max_setpoint = esp_ot_get_ch_max_setpoint();
+    // ot_data.ch_max_setpoint = esp_ot_get_ch_max_setpoint();
 
     ESP_LOGI(TAG, "Configuration: CH bounds [%d..%d]°C, DHW bounds [%d..%d]°C",
              ot_data.ch_min_max.min, ot_data.ch_min_max.max,
@@ -782,9 +782,9 @@ void um_ot_init()
         TAG,
         configMINIMAL_STACK_SIZE * 6, // Увеличен стек
         NULL,
-        1, // Приоритет
+        3, // Приоритет
         &ot_handle,
-        1); // Ядро 1
+        0); // Ядро 1
 
     ESP_LOGI(TAG, "OpenTherm initialized");
 }
@@ -911,25 +911,25 @@ char *um_ot_get_status_json(void)
     }
 
     // Основные флаги состояния
-    cJSON_AddBoolToObject(root, "ot_enabled", otEnabled);
+    cJSON_AddBoolToObject(root, "en", otEnabled);
     cJSON_AddBoolToObject(root, "ready", ot_data.ready);
     cJSON_AddBoolToObject(root, "adapter_success", ot_data.adapter_success);
     cJSON_AddNumberToObject(root, "status_code", ot_data.status);
 
     // Управляющие параметры (что мы задаем)
-    cJSON_AddBoolToObject(root, "ch_enable", enableCentralHeating);
-    cJSON_AddNumberToObject(root, "ch_setpoint_requested", targetCHTemp);
-    cJSON_AddBoolToObject(root, "dhw_enable", enableHotWater);
-    cJSON_AddNumberToObject(root, "dhw_setpoint_requested", targetDHWTemp);
-    cJSON_AddBoolToObject(root, "otc_enable", enableOutsideTemperatureCompensation);
-    cJSON_AddBoolToObject(root, "cooling_enable", enableCooling);
-    cJSON_AddBoolToObject(root, "ch2_enable", enableCentralHeating2);
-    cJSON_AddNumberToObject(root, "modulation_level_set", ot_data.mod);
-    cJSON_AddNumberToObject(root, "heat_curve_ratio", ot_data.hcr);
+    cJSON_AddBoolToObject(root, "ch_en", enableCentralHeating);
+    cJSON_AddNumberToObject(root, "ch_sp", targetCHTemp);
+    cJSON_AddBoolToObject(root, "dhw_en", enableHotWater);
+    cJSON_AddNumberToObject(root, "dhw_sp", targetDHWTemp);
+    cJSON_AddBoolToObject(root, "otc_en", enableOutsideTemperatureCompensation);
+    cJSON_AddBoolToObject(root, "cool_en", enableCooling);
+    cJSON_AddBoolToObject(root, "ch2_en", enableCentralHeating2);
+    cJSON_AddNumberToObject(root, "mod", ot_data.mod);
+    cJSON_AddNumberToObject(root, "hcr", ot_data.hcr);
 
     // Обратная связь от котла
-    cJSON_AddBoolToObject(root, "central_heating_active", ot_data.central_heating_active);
-    cJSON_AddBoolToObject(root, "hot_water_active", ot_data.hot_water_active);
+    cJSON_AddBoolToObject(root, "ch_active", ot_data.central_heating_active);
+    cJSON_AddBoolToObject(root, "dhw_active", ot_data.hot_water_active);
     cJSON_AddBoolToObject(root, "flame_on", ot_data.flame_on);
     cJSON_AddBoolToObject(root, "is_fault", ot_data.is_fault);
 
@@ -938,8 +938,8 @@ char *um_ot_get_status_json(void)
     cJSON_AddNumberToObject(root, "return_temperature", ot_data.return_temperature);
     cJSON_AddNumberToObject(root, "dhw_temperature", ot_data.dhw_temperature);
     cJSON_AddNumberToObject(root, "outside_temperature", ot_data.outside_temperature);
-    cJSON_AddNumberToObject(root, "dhw_setpoint_current", ot_data.dhw_setpoint);
-    cJSON_AddNumberToObject(root, "ch_max_setpoint", ot_data.ch_max_setpoint);
+    // cJSON_AddNumberToObject(root, "dhw_setpoint", ot_data.dhw_setpoint);
+    //  cJSON_AddNumberToObject(root, "ch_max_setpoint", ot_data.ch_max_setpoint);
 
     // Другие параметры
     cJSON_AddNumberToObject(root, "modulation", ot_data.modulation);
@@ -982,7 +982,7 @@ char *um_ot_get_status_json(void)
         cJSON *curve_bounds = cJSON_CreateObject();
         cJSON_AddNumberToObject(curve_bounds, "min", ot_data.curve_bounds.min);
         cJSON_AddNumberToObject(curve_bounds, "max", ot_data.curve_bounds.max);
-        cJSON_AddItemToObject(bounds, "heat_curve", curve_bounds);
+        cJSON_AddItemToObject(bounds, "hcr", curve_bounds);
 
         cJSON_AddItemToObject(root, "bounds", bounds);
     }
@@ -1017,7 +1017,7 @@ char *um_ot_get_status_json(void)
         cJSON_AddBoolToObject(supported, "pressure", ot_data.supported.pressure);
         cJSON_AddBoolToObject(supported, "flow_rate", ot_data.supported.flow_rate);
         cJSON_AddBoolToObject(supported, "dhw_present", ot_data.slave_config.dhw_present);
-        cJSON_AddBoolToObject(supported, "modulating", ot_data.slave_config.control_type == 0);
+        cJSON_AddBoolToObject(supported, "modulating", ot_data.slave_config.control_type != 0);
         cJSON_AddItemToObject(root, "supported_features", supported);
     }
 

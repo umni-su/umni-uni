@@ -403,6 +403,12 @@ dependencies:
       path: components\um_storage
       type: local
     version: 1.0.0
+  um_store:
+    dependencies: []
+    source:
+      path: components\um_store
+      type: local
+    version: 1.0.0
 direct_dependencies:
 - esp-idf-lib/ds18x20
 - esp-idf-lib/onewire
@@ -430,6 +436,7 @@ direct_dependencies:
 - um_rf433
 - um_sd
 - um_storage
-manifest_hash: b1bf1f5df512e4d198750cecb0edd106830c17bc93d7512a9184f2fee8f79acb
+- um_store
+manifest_hash: a0e30fcfc789e9a7a674144bf7882a487113f3832d383a3a45525e50a0c0101b
 target: esp32
 version: 3.0.0

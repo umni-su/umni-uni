@@ -287,7 +287,7 @@ esp_err_t um_capabilities_init(void)
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
     s_enabled_capabilities[index].cap = UM_CAP_OPENCOLLECTORS;
-    s_enabled_capabilities[index].name = "ocpencollectors";
+    s_enabled_capabilities[index].name = "opencollectors";
     s_enabled_capabilities[index].mask = CAP_MASK(UM_CAP_OPENCOLLECTORS);
     s_enabled_mask |= CAP_MASK(UM_CAP_OPENCOLLECTORS);
     index++;

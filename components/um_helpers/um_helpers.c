@@ -7,10 +7,84 @@
 #include "lwip/ip_addr.h"
 #include "um_helpers.h"
 #include "um_nvs.h"
+#include "esp_sntp.h"
+#include "time.h"
 #include "um_capabilities.h"
 
 #define DEVICE_NAME_PREFIX "umni-"
 #define DEVICE_NAME_MAX_LEN 32
+
+const char *TAG = "helpers";
+
+bool s_time_synced = false;
+
+// Инициализация SNTP
+void um_helpers_time_init(void)
+{
+    ESP_LOGI(TAG, "Initializing SNTP...");
+    esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    char *ntp_server = NULL;
+    um_nvs_get_ntp(&ntp_server);
+    if (ntp_server != NULL)
+    {
+        esp_sntp_setservername(0, ntp_server);
+    }
+    else
+    {
+        esp_sntp_setservername(0, "0.ru.pool.ntp.org");
+    }
+
+    esp_sntp_init();
+
+    // Ждем синхронизации
+    time_t now = 0;
+    struct tm timeinfo = {0};
+    int retry = 0;
+    const int max_retry = 20;
+
+    while (timeinfo.tm_year < (2020 - 1900) && ++retry < max_retry)
+    {
+        ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, max_retry);
+        vTaskDelay(pdMS_TO_TICKS(2000));
+        time(&now);
+        localtime_r(&now, &timeinfo);
+    }
+
+    if (retry < max_retry)
+    {
+        s_time_synced = true;
+        char time_str[64];
+        strftime(time_str, sizeof(time_str), "%Y-%m-%d %H:%M:%S", &timeinfo);
+        ESP_LOGI(TAG, "Time synchronized: %s", time_str);
+    }
+    else
+    {
+        ESP_LOGW(TAG, "Failed to sync time, using uptime (relative timestamps)");
+        s_time_synced = false;
+    }
+}
+
+// Функция получения реального timestamp в миллисекундах
+uint64_t um_helpers_get_real_timestamp_ms(void)
+{
+    if (s_time_synced)
+    {
+        struct timeval tv;
+        gettimeofday(&tv, NULL);
+        return (uint64_t)tv.tv_sec * 1000 + (uint64_t)tv.tv_usec / 1000;
+    }
+    else
+    {
+        // Fallback на относительное время
+        return esp_timer_get_time() / 1000;
+    }
+}
+
+// Проверка синхронизации времени
+bool um_helpers_is_time_synced(void)
+{
+    return s_time_synced;
+}
 
 /**
  * @brief Получает информацию о всех сетевых интерфейсах
@@ -189,7 +263,7 @@ char *um_helpers_generate_device_name_full_mac(const char *prefix, char *buffer,
     return buffer;
 }
 
-esp_err_t um_helperts_get_systeminfo(cJSON **data)
+esp_err_t um_helpers_get_systeminfo(cJSON **data)
 {
     cJSON *systeminfo = cJSON_CreateObject();
     if (!systeminfo)

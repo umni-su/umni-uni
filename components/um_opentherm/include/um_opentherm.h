@@ -52,7 +52,7 @@ typedef struct
     float pressure;
     unsigned long slave_product_version;
     float slave_ot_version;
-    float ch_max_setpoint;
+    //float ch_max_setpoint;
     float dhw_setpoint;
     float outside_temperature;
     float flow_rate;

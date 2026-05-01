@@ -775,7 +775,7 @@ esp_err_t um_mqtt_register_device(const char *device_type)
     cJSON *systeminfo = NULL;
 
     // 1. Получаем systeminfo
-    esp_err_t ret = um_helperts_get_systeminfo(&systeminfo);
+    esp_err_t ret = um_helpers_get_systeminfo(&systeminfo);
     if (ret != ESP_OK || !systeminfo)
     {
         return ESP_FAIL;

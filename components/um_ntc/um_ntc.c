@@ -1,8 +1,11 @@
 #include "um_ntc.h"
 #include "um_ntc_config.h"
+#include "um_store.h"
 #include "esp_log.h"
 
 static const char *TAG = "um_ntc";
+
+static um_store_t *s_ntc_stores[2] = {NULL, NULL};
 
 /**
  * @brief NTC channel structure (internal)
@@ -32,6 +35,21 @@ static um_ntc_channel_internal_t s_channel2 = {
     .adc_channel = CONFIG_UM_CFG_NTC2_ADC_CHANNEL,
     .enabled_by_feature = true};
 #endif
+
+esp_err_t um_ntc_store_init(void)
+{
+#if UM_FEATURE_ENABLED(NTC1)
+    s_ntc_stores[0] = um_store_create("ntc1");
+    if (!s_ntc_stores[0])
+        return ESP_FAIL;
+#endif
+#if UM_FEATURE_ENABLED(NTC2)
+    s_ntc_stores[1] = um_store_create("ntc2");
+    if (!s_ntc_stores[1])
+        return ESP_FAIL;
+#endif
+    return ESP_OK;
+}
 
 // Helper to get channel pointer
 static um_ntc_channel_internal_t *get_channel_ptr(um_ntc_channel_id_t channel_id)
@@ -200,7 +218,14 @@ esp_err_t um_ntc_read_temperature(um_ntc_channel_id_t channel_id, float *tempera
     if (ret == ESP_OK)
     {
         channel->temperature = *temperature;
-        ESP_LOGD(TAG, "Channel %d temperature: %.2f°C", channel_id, *temperature);
+
+        // Сохраняем в хранилище
+        if (s_ntc_stores[channel_id])
+        {
+            um_store_add_value(s_ntc_stores[channel_id], *temperature);
+        }
+
+        ESP_LOGI(TAG, "Channel %d temperature: %.2f°C", channel_id, *temperature);
     }
     else
     {
@@ -210,6 +235,23 @@ esp_err_t um_ntc_read_temperature(um_ntc_channel_id_t channel_id, float *tempera
     }
 
     return ret;
+}
+
+char *um_ntc_get_history_json(um_ntc_channel_id_t channel_id)
+{
+    if (channel_id >= 2 || !s_ntc_stores[channel_id])
+    {
+        return strdup("{\"error\":\"invalid channel\"}");
+    }
+    return um_store_to_json(s_ntc_stores[channel_id]);
+}
+
+void um_ntc_get_stats(um_ntc_channel_id_t channel_id, float *min, float *max, float *avg)
+{
+    if (channel_id < 2 && s_ntc_stores[channel_id])
+    {
+        um_store_stats(s_ntc_stores[channel_id], min, max, avg);
+    }
 }
 
 um_ntc_state_t um_ntc_get_state(um_ntc_channel_id_t channel_id)

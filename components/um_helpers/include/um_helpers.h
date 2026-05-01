@@ -38,4 +38,7 @@ int um_helpers_get_memory_info(um_memory_info_t *info);
 
 char *um_helpers_generate_device_name_from_mac(const char *prefix, char *buffer, size_t buffer_size);
 char *um_helpers_generate_device_name_full_mac(const char *prefix, char *buffer, size_t buffer_size);
-esp_err_t um_helperts_get_systeminfo(cJSON **data);
+esp_err_t um_helpers_get_systeminfo(cJSON **data);
+
+void um_helpers_time_init(void);
+uint64_t um_helpers_get_real_timestamp_ms(void);

@@ -7,6 +7,7 @@
 #include "um_storage.h"
 #include "um_nvs.h"
 #include "um_capabilities.h"
+#include "um_helpers.h"
 
 #if UM_FEATURE_ENABLED(WEBHOOKS)
 #include "um_webhooks.h"
@@ -193,6 +194,9 @@ void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, voi
     }
     if (has_connection)
     {
+
+        // SNMP
+        um_helpers_time_init();
 #if UM_FEATURE_ENABLED(MQTT)
         um_mqtt_init(hostname != NULL ? hostname : "umni-unknown");
 #endif
@@ -290,6 +294,9 @@ void um_main_device_handler(void *args)
         {
             publish_sensor_data(UM_CAP_NTC1, UM_MQTT_TOPIC_NTC, NULL, temp1, false);
             ESP_LOGI(TAG, "[ntc] ntc1: %.2f", temp1);
+            char *history_json1 = um_ntc_get_history_json(UM_NTC_CHANNEL_1);
+            ESP_LOGI(TAG, "%s", history_json1);
+            free(history_json1);
         }
 #endif
 #if UM_FEATURE_ENABLED(NTC2)
@@ -371,6 +378,7 @@ void app_main(void)
             // Можно продолжить без NTC
         }
         um_ntc_set_all_enabled(true);
+        um_ntc_store_init();
 #endif
 
         // Инициализируем ADC если нужен
@@ -432,53 +440,55 @@ void app_main(void)
 #endif
 
 #if UM_FEATURE_ENABLED(ETHERNET)
+    vTaskDelay(pdMS_TO_TICKS(100));
     um_ethernet_init();
 #endif
 
 #if UM_FEATURE_ENABLED(SDCARD)
+    vTaskDelay(pdMS_TO_TICKS(100));
     um_sd_init();
 #endif
 
-#if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC1)
-    // Чтение всех температур
-    float temp1, temp2;
-    uint8_t success_read_ntc = um_ntc_read_all(&temp1, &temp2);
+    // #if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
+    //     // Чтение всех температур
+    //     float temp1, temp2;
+    //     uint8_t success_read_ntc = um_ntc_read_all(&temp1, &temp2);
 
-#if UM_FEATURE_ENABLED(NTC1)
-    if (success_read_ntc & 0x01)
-    {
-        ESP_LOGI("MAIN", "NTC1: %.2f°C", temp1);
-    }
-#endif
+    // #if UM_FEATURE_ENABLED(NTC1)
+    //     if (success_read_ntc & 0x01)
+    //     {
+    //         ESP_LOGI("MAIN", "NTC1: %.2f°C", temp1);
+    //     }
+    // #endif
 
-#if UM_FEATURE_ENABLED(NTC2)
-    if (success_read_ntc & 0x02)
-    {
-        ESP_LOGI("MAIN", "NTC2: %.2f°C", temp2);
-    }
-#endif
+    // #if UM_FEATURE_ENABLED(NTC2)
+    //     if (success_read_ntc & 0x02)
+    //     {
+    //         ESP_LOGI("MAIN", "NTC2: %.2f°C", temp2);
+    //     }
+    // #endif
 
-#endif
+    // #endif
 
-#if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
-    um_adc_set_all_enabled(true);
-    int raw1, raw2;
+    // #if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
+    //     um_adc_set_all_enabled(true);
+    //     int raw1, raw2;
 
-    uint8_t success_read_adc = um_adc_read_all_raw(&raw1, &raw2);
-#if UM_FEATURE_ENABLED(AI1)
-    if (success_read_adc & 0x01)
-    {
-        ESP_LOGI("MAIN", "ADC1 raw: %d", raw1);
-    }
-#endif
-#if UM_FEATURE_ENABLED(AI2)
-    if (success_read_adc & 0x02)
-    {
-        ESP_LOGI("MAIN", "ADC2 raw: %d", raw2);
-    }
-#endif
+    //     uint8_t success_read_adc = um_adc_read_all_raw(&raw1, &raw2);
+    // #if UM_FEATURE_ENABLED(AI1)
+    //     if (success_read_adc & 0x01)
+    //     {
+    //         ESP_LOGI("MAIN", "ADC1 raw: %d", raw1);
+    //     }
+    // #endif
+    // #if UM_FEATURE_ENABLED(AI2)
+    //     if (success_read_adc & 0x02)
+    //     {
+    //         ESP_LOGI("MAIN", "ADC2 raw: %d", raw2);
+    //     }
+    // #endif
 
-#endif
+    // #endif
 
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");
