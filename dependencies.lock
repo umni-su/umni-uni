@@ -246,7 +246,7 @@ dependencies:
       type: service
     version: 1.2.0
   espressif/mdns:
-    component_hash: 043f989435fd88f771c70507bfde854380c259a8fec8c0d60bcfd8714f16960e
+    component_hash: 1ebe3bd675bb9d1c58f52bc0b609b32f74e572b01c328f9e61282040c775495c
     dependencies:
     - name: idf
       require: private
@@ -254,7 +254,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.10.0
+    version: 1.11.0
   espressif/mqtt:
     component_hash: ffdad5659706b4dc14bc63f8eb73ef765efa015bf7e9adf71c813d52a2dc9342
     dependencies:
@@ -437,6 +437,6 @@ direct_dependencies:
 - um_sd
 - um_storage
 - um_store
-manifest_hash: a0e30fcfc789e9a7a674144bf7882a487113f3832d383a3a45525e50a0c0101b
+manifest_hash: da34e1d061b9361020ae0fa63d8cee51f4059ff24fdb7a68992fe2815598d959
 target: esp32
 version: 3.0.0

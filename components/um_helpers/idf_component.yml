@@ -4,6 +4,9 @@ dependencies:
   espressif/cjson:
     version: "*"
     require: public
+  espressif/mdns:
+    version: "*"
+    require: public
   um_nvs:
     path: "../um_nvs"
     version: "*"

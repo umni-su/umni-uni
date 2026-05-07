@@ -10,17 +10,21 @@
 #include "esp_sntp.h"
 #include "time.h"
 #include "um_capabilities.h"
+#include "mdns.h"
 
 #define DEVICE_NAME_PREFIX "umni-"
 #define DEVICE_NAME_MAX_LEN 32
 
 const char *TAG = "helpers";
+static const char *MDNS_TAG = "mdns";
 
 bool s_time_synced = false;
 
 // Инициализация SNTP
 void um_helpers_time_init(void)
 {
+    if (s_time_synced)
+        return;
     ESP_LOGI(TAG, "Initializing SNTP...");
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     char *ntp_server = NULL;
@@ -336,4 +340,198 @@ esp_err_t um_helpers_get_systeminfo(cJSON **data)
     *data = systeminfo;
 
     return ESP_OK;
+}
+
+esp_err_t um_helpers_mdns_init(void)
+{
+    ESP_LOGI(MDNS_TAG, "Initializing mDNS...");
+
+    // Инициализируем mDNS
+    esp_err_t err = mdns_init();
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(MDNS_TAG, "mDNS init failed: %d", err);
+        return err;
+    }
+
+    // Получаем hostname из NVS (как в вашем коде)
+    char *hostname = NULL;
+    err = um_nvs_get_hostname(&hostname);
+
+    if (err == ESP_OK && hostname != NULL && strlen(hostname) > 0)
+    {
+        // Используем сохранённый hostname
+        mdns_hostname_set(hostname);
+        ESP_LOGI(MDNS_TAG, "Hostname set from NVS: %s.local", hostname);
+        free(hostname);
+    }
+    else
+    {
+        // Генерируем из MAC как fallback
+        char generated_name[DEVICE_NAME_MAX_LEN];
+        um_helpers_generate_device_name_from_mac(DEVICE_NAME_PREFIX,
+                                                 generated_name,
+                                                 sizeof(generated_name));
+        mdns_hostname_set(generated_name);
+        ESP_LOGI(MDNS_TAG, "Hostname generated from MAC: %s.local", generated_name);
+    }
+
+    // Устанавливаем инстанс имя (friendly name)
+    mdns_instance_name_set("UMNI Smart Controller");
+
+    err = um_mdns_add_basic_services();
+    err = um_mdns_add_discovery();
+
+    ESP_LOGI(MDNS_TAG, "mDNS initialized successfully");
+    return ESP_OK;
+}
+
+// Добавление базовых сервисов для обнаружения
+esp_err_t um_mdns_add_basic_services(void)
+{
+    ESP_LOGI(MDNS_TAG, "Adding basic mDNS services...");
+
+    // 1. HTTP сервис (для веб-интерфейса)
+    mdns_txt_item_t http_txt[] = {
+        {"path", "/api/"},
+        {"api_version", "1.0"}};
+
+    esp_err_t err = mdns_service_add("UMNI Web Interface",
+                                     "_http", "_tcp", 80,
+                                     http_txt,
+                                     sizeof(http_txt) / sizeof(http_txt[0]));
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(MDNS_TAG, "Failed to add HTTP service: %d", err);
+    }
+
+    // 2. Home Assistant API (для автоматического обнаружения)
+    mdns_txt_item_t ha_txt[] = {
+        {"api", "true"},
+        {"version", CONFIG_UMNI_FW_VERSION},
+        {"device_class", "controller"}};
+
+    err = mdns_service_add("UMNI HA Integration",
+                           "_homeassistant", "_tcp", 8123,
+                           ha_txt,
+                           sizeof(ha_txt) / sizeof(ha_txt[0]));
+    if (err != ESP_OK)
+    {
+        ESP_LOGW(MDNS_TAG, "Failed to add HA service: %d", err);
+    }
+
+    ESP_LOGI(MDNS_TAG, "Basic services added");
+    return ESP_OK;
+}
+
+// Универсальная функция добавления кастомного сервиса
+esp_err_t um_mdns_add_service(const char *instance_name,
+                              const char *service_type,
+                              const char *proto,
+                              uint16_t port,
+                              um_mdns_txt_item_t *txt_items,
+                              size_t txt_count)
+{
+    if (!service_type || !proto)
+    {
+        ESP_LOGE(MDNS_TAG, "Invalid parameters: service_type and proto required");
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Используем instance_name или hostname если не указан
+    char *hostname = NULL;
+    um_nvs_get_hostname(&hostname);
+
+    if (!instance_name)
+    {
+        instance_name = hostname ? hostname : "UMNI Device";
+    }
+
+    // Конвертируем наш формат TXT в формат mdns
+    mdns_txt_item_t *mdns_txt = NULL;
+    if (txt_items && txt_count > 0)
+    {
+        mdns_txt = (mdns_txt_item_t *)malloc(sizeof(mdns_txt_item_t) * txt_count);
+        if (!mdns_txt)
+        {
+            ESP_LOGE(MDNS_TAG, "Memory allocation failed");
+            if (hostname)
+                free(hostname);
+            return ESP_ERR_NO_MEM;
+        }
+
+        for (size_t i = 0; i < txt_count; i++)
+        {
+            mdns_txt[i].key = txt_items[i].key;
+            mdns_txt[i].value = txt_items[i].value;
+        }
+    }
+
+    // Добавляем сервис
+    esp_err_t err = mdns_service_add(instance_name,
+                                     service_type,
+                                     proto,
+                                     port,
+                                     mdns_txt,
+                                     txt_count);
+
+    if (mdns_txt)
+        free(mdns_txt);
+    if (hostname)
+        free(hostname);
+
+    if (err == ESP_OK)
+    {
+        ESP_LOGI(MDNS_TAG, "Service added: %s.%s.%s on port %d",
+                 instance_name, service_type, proto, port);
+    }
+    else
+    {
+        ESP_LOGE(MDNS_TAG, "Failed to add service: %d", err);
+    }
+
+    return err;
+}
+
+// Специальная функция для Home Assistant discovery
+esp_err_t um_mdns_add_discovery(void)
+{
+    um_mdns_txt_item_t discovery[] = {
+        {"unique_id", NULL},
+        {"name", NULL},
+        {"capabilities", NULL}};
+
+    // Получаем hostname для unique_id
+    char *hostname = NULL;
+    um_nvs_get_hostname(&hostname);
+
+    char unique_id[64];
+    char name[64];
+
+    if (hostname)
+    {
+        snprintf(unique_id, sizeof(unique_id), "%s", hostname);
+        snprintf(name, sizeof(name), "UMNI %s", hostname);
+        discovery[0].value = unique_id; // unique_id
+        discovery[1].value = name;      // name
+    }
+    else
+    {
+        uint8_t mac[6];
+        esp_read_mac(mac, ESP_MAC_WIFI_STA);
+        snprintf(unique_id, sizeof(unique_id), "umni_%02x%02x%02x", mac[3], mac[4], mac[5]);
+        discovery[0].value = unique_id;
+        discovery[1].value = "UMNI Device";
+    }
+    esp_err_t err = um_mdns_add_service("UMNI UNI REST API",
+                                        "_umni_api",
+                                        "_tcp",
+                                        80,
+                                        discovery,
+                                        2);
+
+    if (hostname)
+        free(hostname);
+
+    return err;
 }

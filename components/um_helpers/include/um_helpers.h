@@ -42,3 +42,25 @@ esp_err_t um_helpers_get_systeminfo(cJSON **data);
 
 void um_helpers_time_init(void);
 uint64_t um_helpers_get_real_timestamp_ms(void);
+
+typedef struct
+{
+    const char *key;
+    const char *value;
+} um_mdns_txt_item_t;
+
+// Инициализация mDNS сервиса
+esp_err_t um_helpers_mdns_init(void);
+
+// Добавление базовых сервисов для обнаружения
+esp_err_t um_mdns_add_basic_services(void);
+
+// Добавление кастомного сервиса
+esp_err_t um_mdns_add_service(const char *instance_name,
+                              const char *service_type,
+                              const char *proto,
+                              uint16_t port,
+                              um_mdns_txt_item_t *txt_items,
+                              size_t txt_count);
+
+esp_err_t um_mdns_add_discovery(void);

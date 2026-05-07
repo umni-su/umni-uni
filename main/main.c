@@ -34,9 +34,9 @@
 #include "um_dio_config.h"
 #endif
 
-#if UM_FEATURE_ENABLED(SDCARD)
-#include "um_sd.h"
-#endif
+// #if UM_FEATURE_ENABLED(SDCARD)
+// #include "um_sd.h"
+// #endif
 
 #if UM_FEATURE_ENABLED(OPENTHERM)
 #include "um_opentherm.h"
@@ -197,6 +197,8 @@ void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, voi
 
         // SNMP
         um_helpers_time_init();
+        // MDNS
+        um_helpers_mdns_init();
 #if UM_FEATURE_ENABLED(MQTT)
         um_mqtt_init(hostname != NULL ? hostname : "umni-unknown");
 #endif
@@ -346,10 +348,6 @@ void app_main(void)
     esp_register_shutdown_handler(shutdown_handler);
 
     um_capabilities_init();
-    char *cpb = um_capabilities_get_json_object();
-
-    ESP_LOGI(TAG, "Capabilities: %s", cpb);
-    free(cpb);
 
     // Шина событий
     um_events_init();
@@ -444,10 +442,10 @@ void app_main(void)
     um_ethernet_init();
 #endif
 
-#if UM_FEATURE_ENABLED(SDCARD)
-    vTaskDelay(pdMS_TO_TICKS(100));
-    um_sd_init();
-#endif
+    // #if UM_FEATURE_ENABLED(SDCARD)
+    //     vTaskDelay(pdMS_TO_TICKS(100));
+    //     um_sd_init();
+    // #endif
 
     // #if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
     //     // Чтение всех температур

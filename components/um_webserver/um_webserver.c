@@ -50,6 +50,10 @@
 static const char *REST_TAG = "um_webserver";
 static httpd_handle_t server = NULL;
 
+#ifndef UM_SD_VFS_PATH_MAX
+#define UM_SD_VFS_PATH_MAX 15
+#endif
+
 typedef esp_err_t (*um_data_provider_t)(httpd_req_t *req, cJSON **data_out);
 
 typedef struct rest_server_context
@@ -91,35 +95,35 @@ static const char *TEST_HTML =
  *
  * @return  esp_err_t            [return description]
  */
-static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepath)
-{
-    const char *type = "text/plain";
-    if (CHECK_FILE_EXTENSION(filepath, ".html"))
-    {
-        type = "text/html";
-    }
-    else if (CHECK_FILE_EXTENSION(filepath, ".js"))
-    {
-        type = "application/javascript";
-    }
-    else if (CHECK_FILE_EXTENSION(filepath, ".css"))
-    {
-        type = "text/css";
-    }
-    else if (CHECK_FILE_EXTENSION(filepath, ".png"))
-    {
-        type = "image/png";
-    }
-    else if (CHECK_FILE_EXTENSION(filepath, ".ico"))
-    {
-        type = "image/x-icon";
-    }
-    else if (CHECK_FILE_EXTENSION(filepath, ".svg"))
-    {
-        type = "image/svg+xml";
-    }
-    return httpd_resp_set_type(req, type);
-}
+// static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepath)
+// {
+//     const char *type = "text/plain";
+//     if (CHECK_FILE_EXTENSION(filepath, ".html"))
+//     {
+//         type = "text/html";
+//     }
+//     else if (CHECK_FILE_EXTENSION(filepath, ".js"))
+//     {
+//         type = "application/javascript";
+//     }
+//     else if (CHECK_FILE_EXTENSION(filepath, ".css"))
+//     {
+//         type = "text/css";
+//     }
+//     else if (CHECK_FILE_EXTENSION(filepath, ".png"))
+//     {
+//         type = "image/png";
+//     }
+//     else if (CHECK_FILE_EXTENSION(filepath, ".ico"))
+//     {
+//         type = "image/x-icon";
+//     }
+//     else if (CHECK_FILE_EXTENSION(filepath, ".svg"))
+//     {
+//         type = "image/svg+xml";
+//     }
+//     return httpd_resp_set_type(req, type);
+// }
 
 static esp_err_t get_wrapper(httpd_req_t *req)
 {
@@ -982,7 +986,11 @@ esp_err_t um_webserver_start(void)
     // Конфигурация сервера
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
 
+#if UM_FEATURE_ENABLED(SDCARD)
     char *base_path = CONFIG_UMNI_SD_MOUNT_POINT "/www";
+#else
+    char *base_path = "/";
+#endif
 
     REST_CHECK(base_path, "wrong base path", err);
     rest_server_context_t *rest_context = calloc(1, sizeof(rest_server_context_t));
