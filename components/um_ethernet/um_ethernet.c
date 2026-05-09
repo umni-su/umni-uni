@@ -1,117 +1,155 @@
 #include "um_ethernet.h"
 #include "um_events.h"
+#include <string.h>
+#include <stdlib.h>
 
 static const char *TAG = "ethernet_basic";
+static esp_netif_t *eth_netif = NULL;
+static esp_eth_handle_t *eth_handles = NULL;
+static uint8_t eth_port_cnt = 0;
+static um_eth_config_t current_config = {.mode = UM_ETH_MODE_DHCP};
+static bool is_initialized = false;
 
-static void eth_disconnect_event_handler(
-    void *handler_args,
-    esp_event_base_t event_base,
-    int32_t event_id, void *event_data)
+static void apply_ip_config(void)
+{
+    if (!eth_netif)
+        return;
+
+    if (current_config.mode == UM_ETH_MODE_STATIC)
+    {
+        esp_netif_ip_info_t ip_info;
+        ip_info.ip.addr = inet_addr(current_config.ip);
+        ip_info.netmask.addr = inet_addr(current_config.netmask);
+        ip_info.gw.addr = inet_addr(current_config.gateway);
+
+        esp_netif_dhcpc_stop(eth_netif);
+        esp_netif_set_ip_info(eth_netif, &ip_info);
+
+        ESP_LOGI(TAG, "Static IP configured: %s", current_config.ip);
+    }
+    else
+    {
+        esp_netif_dhcpc_start(eth_netif);
+        ESP_LOGI(TAG, "DHCP enabled");
+    }
+}
+
+static void eth_disconnect_event_handler(void *handler_args, esp_event_base_t event_base,
+                                         int32_t event_id, void *event_data)
 {
     ESP_LOGW(TAG, "Ethernet disconnected");
-    // Если um_event_publish — ваша внутренняя функция, оставляем как есть
     um_event_publish(UMNI_EVENT_ETH_DISCONNECTED, NULL, 0, portMAX_DELAY);
 }
 
-/* Event handler for IP_EVENT_ETH_GOT_IP */
-static void got_ip_event_handler(
-    void *arg,
-    esp_event_base_t event_base,
-    int32_t event_id,
-    void *event_data)
+static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
+                                 int32_t event_id, void *event_data)
 {
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
     const esp_netif_ip_info_t *ip_info = &event->ip_info;
 
     ESP_LOGI(TAG, "Ethernet Got IP Address");
-    ESP_LOGI(TAG, "~~~~~~~~~~~");
     ESP_LOGI(TAG, "IP: " IPSTR, IP2STR(&ip_info->ip));
     ESP_LOGI(TAG, "MASK: " IPSTR, IP2STR(&ip_info->netmask));
     ESP_LOGI(TAG, "GW: " IPSTR, IP2STR(&ip_info->gw));
-    ESP_LOGI(TAG, "~~~~~~~~~~~");
 
-    um_event_publish(UMNI_EVENT_ETH_CONNECTED, NULL, sizeof(NULL), portMAX_DELAY);
+    um_event_publish(UMNI_EVENT_ETH_CONNECTED, NULL, 0, portMAX_DELAY);
 }
 
-void um_ethernet_init()
+static void init_internal(um_eth_config_t *config)
 {
-    uint8_t eth_port_cnt = 0;
-    esp_eth_handle_t *eth_handles;
-    char if_key_str[10];
-    char if_desc_str[10];
-
     esp_err_t res;
 
-    // Initialize TCP/IP network interface aka the esp-netif (should be called only once in application)
+    // Save config if provided
+    if (config)
+    {
+        current_config = *config;
+    }
+
+    // Init network stack
     ESP_ERROR_CHECK(esp_netif_init());
-    // Create default event loop that running in background
     res = esp_event_loop_create_default();
     if (res == ESP_ERR_INVALID_STATE)
     {
         ESP_LOGW(TAG, "Event bus already initialized");
     }
 
-    // Initialize Ethernet driver
+    // Init Ethernet driver
     ESP_ERROR_CHECK(ethernet_init_all(&eth_handles, &eth_port_cnt));
 
-    // Create instance(s) of esp-netif for Ethernet(s)
-    if (eth_port_cnt == 1)
+    // Create netif
+    if (eth_port_cnt > 0)
     {
-        // Use ESP_NETIF_DEFAULT_ETH when just one Ethernet interface is used and you don't need to modify
-        // default esp-netif configuration parameters.
         esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
-        esp_netif_t *eth_netif = esp_netif_new(&cfg);
-        // Attach Ethernet driver to TCP/IP stack
+        eth_netif = esp_netif_new(&cfg);
         ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handles[0])));
     }
-    else
-    {
-        // Use ESP_NETIF_INHERENT_DEFAULT_ETH when multiple Ethernet interfaces are used and so you need to modify
-        // esp-netif configuration parameters for each interface (name, priority, etc.).
-        esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_ETH();
-        esp_netif_config_t cfg_spi = {
-            .base = &esp_netif_config,
-            .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH};
 
-        for (int i = 0; i < eth_port_cnt; i++)
-        {
-            sprintf(if_key_str, "ETH_%d", i);
-            sprintf(if_desc_str, "eth%d", i);
-            esp_netif_config.if_key = if_key_str;
-            esp_netif_config.if_desc = if_desc_str;
-            esp_netif_config.route_prio -= i * 5;
-            esp_netif_t *eth_netif = esp_netif_new(&cfg_spi);
-
-            // Attach Ethernet driver to TCP/IP stack
-            ESP_ERROR_CHECK(esp_netif_attach(eth_netif, esp_eth_new_netif_glue(eth_handles[i])));
-        }
-    }
-
-    // Register user defined event handers
+    // Register handlers
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &eth_disconnect_event_handler, NULL));
 
-    // Start Ethernet driver state machine
+    // Apply IP config before start
+    apply_ip_config();
+
+    // Start Ethernet
     for (int i = 0; i < eth_port_cnt; i++)
     {
         ESP_ERROR_CHECK(esp_eth_start(eth_handles[i]));
     }
 
-    // Print each device info
+    is_initialized = true;
+}
+
+void um_ethernet_init(um_eth_config_t *config)
+{
+    init_internal(config);
+}
+
+void um_ethernet_reinit(um_eth_config_t *config)
+{
+    if (!is_initialized)
+    {
+        um_ethernet_init(config);
+        return;
+    }
+
+    ESP_LOGI(TAG, "Reinitializing Ethernet...");
+
+    // Stop and cleanup
     for (int i = 0; i < eth_port_cnt; i++)
     {
-        eth_dev_info_t info = ethernet_init_get_dev_info(eth_handles[i]);
-        if (info.type == ETH_DEV_TYPE_INTERNAL_ETH)
-        {
-            ESP_LOGI(TAG, "Device Name: %s", info.name);
-            ESP_LOGI(TAG, "Device type: ETH_DEV_TYPE_INTERNAL_ETH(%d)", info.type);
-            ESP_LOGI(TAG, "Pins: mdc: %d, mdio: %d", info.pin.eth_internal_mdc, info.pin.eth_internal_mdio);
-        }
-        else if (info.type == ETH_DEV_TYPE_SPI)
-        {
-            ESP_LOGI(TAG, "Device Name: %s", info.name);
-            ESP_LOGI(TAG, "Device type: ETH_DEV_TYPE_SPI(%d)", info.type);
-            ESP_LOGI(TAG, "Pins: cs: %d, intr: %d", info.pin.eth_spi_cs, info.pin.eth_spi_int);
-        }
+        esp_eth_stop(eth_handles[i]);
     }
-};
+
+    if (eth_netif)
+    {
+        esp_netif_destroy(eth_netif);
+        eth_netif = NULL;
+    }
+
+    // Unregister handlers
+    esp_event_handler_unregister(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler);
+    esp_event_handler_unregister(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &eth_disconnect_event_handler);
+
+    // Reinit with new config
+    init_internal(config);
+}
+
+char *um_ethernet_get_ip(void)
+{
+    if (!eth_netif)
+        return NULL;
+
+    esp_netif_ip_info_t ip_info;
+    if (esp_netif_get_ip_info(eth_netif, &ip_info) != ESP_OK)
+    {
+        return NULL;
+    }
+
+    char *ip_str = malloc(16);
+    if (ip_str)
+    {
+        sprintf(ip_str, IPSTR, IP2STR(&ip_info.ip));
+    }
+    return ip_str;
+}

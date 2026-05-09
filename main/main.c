@@ -439,7 +439,7 @@ void app_main(void)
 
 #if UM_FEATURE_ENABLED(ETHERNET)
     vTaskDelay(pdMS_TO_TICKS(100));
-    um_ethernet_init();
+    um_ethernet_init(NULL);
 #endif
 
     // #if UM_FEATURE_ENABLED(SDCARD)

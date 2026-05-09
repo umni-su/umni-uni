@@ -476,6 +476,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
     um_nvs_get_ot_ch_setpoint(&targetCHTemp);
     um_nvs_get_ot_ch_enabled(&enableCentralHeating);
     um_nvs_get_ot_dhw_enabled(&enableHotWater);
+    um_nvs_get_ot_modulation(&ot_data.mod);
     um_nvs_get_ot_outdoor_temp_comp(&enableOutsideTemperatureCompensation);
 
     // Инициализация last-значений
@@ -721,24 +722,27 @@ esp_err_t um_ot_set_boiler_status(
     return ESP_OK;
 }
 
-void um_ot_set_boiler_temp(float temp)
+void um_ot_set_ch_setpoint(uint8_t temp)
 {
-    if (temp < 0)
-        temp = 0;
+    if (ot_data.ch_sp == temp)
+        return;
+
     if (temp > 100)
         temp = 100;
-    targetCHTemp = (uint8_t)temp;
+    targetCHTemp = temp;
+    ot_data.ch_sp = targetCHTemp;
     um_nvs_write_i8(UM_NVS_KEY_OT_CH_SETPOINT, targetCHTemp);
     ESP_LOGI(TAG, "CH temperature requested: %.0f°C", temp);
 }
 
-void um_ot_set_dhw_setpoint(float temp)
+void um_ot_set_dhw_setpoint(uint8_t temp)
 {
-    if (temp < 0)
-        temp = 0;
+    if (ot_data.dhw_sp == temp)
+        return;
     if (temp > 100)
         temp = 100;
-    targetDHWTemp = (uint8_t)temp;
+    targetDHWTemp = temp;
+    ot_data.dhw_sp = targetDHWTemp;
     um_nvs_write_i8(UM_NVS_KEY_OT_DHW_SETPOINT, targetDHWTemp);
     ESP_LOGI(TAG, "DHW setpoint requested: %.0f°C", temp);
 }
@@ -800,36 +804,53 @@ void um_ot_reset_error()
     ESP_LOGI(TAG, "Reset error flag set");
 }
 
-void um_ot_set_central_heating_active(bool state)
+void um_ot_set_active(bool state)
 {
+    if (otEnabled == state)
+        return;
+    um_nvs_set_ot_enabled(state);
+    otEnabled = state;
+}
+
+void um_ot_set_ch_en(bool state)
+{
+    if (ot_data.ch_en == state)
+        return;
     um_nvs_write_i8(UM_NVS_KEY_OT_CH, state ? 1 : 0);
     enableCentralHeating = state;
     ot_data.ch_en = state;
     ESP_LOGI(TAG, "Central heating active: %d", state);
 }
 
-void um_ot_set_hot_water_active(bool state)
+void um_ot_set_dhw_en(bool state)
 {
+    if (ot_data.dhw_en == state)
+        return;
     um_nvs_write_i8(UM_NVS_KEY_OT_DHW, state ? 1 : 0);
     enableHotWater = state;
     ot_data.dhw_en = state;
     ESP_LOGI(TAG, "Hot water active: %d", state);
 }
 
-void um_ot_set_ch2(bool active)
+void um_ot_set_ch2(bool state)
 {
+    if (ot_data.ch2_en == state)
+        return;
     if (!ot_data.slave_config.ch2_present)
     {
         ESP_LOGW(TAG, "CH2 not supported by boiler");
         return;
     }
-    enableCentralHeating2 = active;
-    um_nvs_write_i8(UM_NVS_KEY_OT_CH2, active ? 1 : 0);
-    ESP_LOGI(TAG, "CH2 active: %d", active);
+    enableCentralHeating2 = state;
+    ot_data.ch2_en = state;
+    um_nvs_write_i8(UM_NVS_KEY_OT_CH2, state ? 1 : 0);
+    ESP_LOGI(TAG, "CH2 active: %d", state);
 }
 
-void um_ot_set_outside_temp_comp(bool state)
+void um_ot_set_otc_en(bool state)
 {
+    if (ot_data.otc_en == state)
+        return;
     um_nvs_write_i8(UM_NVS_KEY_OT_OTC, state ? 1 : 0);
     enableOutsideTemperatureCompensation = state;
     ot_data.otc_en = state;
@@ -838,10 +859,12 @@ void um_ot_set_outside_temp_comp(bool state)
 
 void um_ot_set_modulation_level(int level)
 {
+    if (ot_data.mod == (uint8_t)level)
+        return;
     if (level < 0)
         level = 0;
-    if (level > 99)
-        level = 99;
+    if (level > 100)
+        level = 100;
 
     // Проверка поддержки!
     if (!ot_data.supported.modulation_write)
@@ -862,6 +885,8 @@ void um_ot_set_modulation_level(int level)
 
 void um_ot_set_heat_curve_ratio(int ratio)
 {
+    if (ot_data.hcr == ratio)
+        return;
     if (ratio < 0)
         ratio = 0;
     if (ratio > 100)
@@ -882,7 +907,7 @@ void um_ot_set_heat_curve_ratio(int ratio)
 
 void um_ot_update_state(bool otch, int otdhwsp, int ottbsp)
 {
-    um_ot_set_central_heating_active(otch);
+    um_ot_set_ch_en(otch);
 
     targetCHTemp = ottbsp;
     ot_data.ch_sp = ottbsp;

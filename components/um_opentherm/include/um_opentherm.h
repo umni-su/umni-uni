@@ -52,13 +52,13 @@ typedef struct
     float pressure;
     unsigned long slave_product_version;
     float slave_ot_version;
-    //float ch_max_setpoint;
+    // float ch_max_setpoint;
     float dhw_setpoint;
     float outside_temperature;
     float flow_rate;
     float heat_curve_ratio;
     float flow_rate_ch2;
-    int mod; // modulation level setting
+    uint8_t mod; // modulation level setting
     esp_ot_min_max_t dhw_min_max;
     esp_ot_min_max_t ch_min_max;
     esp_ot_min_max_t curve_bounds;
@@ -82,25 +82,27 @@ esp_err_t um_ot_set_boiler_status(
     bool enable_outside_temperature_compensation,
     bool enable_central_heating2);
 
-void um_ot_set_boiler_temp(float temp);
+void um_ot_set_ch_setpoint(uint8_t temp);
 
-void um_ot_set_dhw_setpoint(float temp);
+void um_ot_set_dhw_setpoint(uint8_t temp);
 
 void um_ot_update_state(bool otch, int otdhw, int ottbsp);
 
-void um_ot_set_central_heating_active(bool state);
+void um_ot_set_active(bool state);
 
-void um_ot_set_hot_water_active(bool state);
+void um_ot_set_ch_en(bool state);
+
+void um_ot_set_dhw_en(bool state);
 
 void um_ot_reset_error();
 
 void um_ot_set_ch2(bool active);
 
-void um_ot_set_outside_temp_comp(bool state);
+void um_ot_set_otc_en(bool state);
 
 void um_ot_set_modulation_level(int level);
 
-void um_ot_set_hot_water_active(bool hwa);
+void um_ot_set_dhw_en(bool hwa);
 
 void um_ot_set_heat_curve_ratio(int ratio);
 

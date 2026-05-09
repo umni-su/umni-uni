@@ -859,27 +859,33 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
 
         if (cJSON_IsBool(ot_en))
         {
-            um_nvs_set_ot_enabled(cJSON_IsTrue(ot_en));
+            um_ot_set_active(cJSON_IsTrue(ot_en));
+            // um_nvs_set_ot_enabled(cJSON_IsTrue(ot_en));
         }
         if (cJSON_IsBool(ot_ch_en))
         {
-            um_nvs_set_ot_ch_enabled(cJSON_IsTrue(ot_ch_en));
+            um_ot_set_ch_en(cJSON_IsTrue(ot_ch_en));
+            // um_nvs_set_ot_ch_enabled(cJSON_IsTrue(ot_ch_en));
         }
         if (cJSON_IsNumber(ot_ch_sp))
         {
-            um_nvs_set_ot_ch_setpoint((uint8_t)ot_ch_sp->valueint);
+            um_ot_set_ch_setpoint((uint8_t)ot_ch_sp->valueint);
+            // um_nvs_set_ot_ch_setpoint((uint8_t)ot_ch_sp->valueint);
         }
         if (cJSON_IsBool(ot_dhw_en))
         {
-            um_nvs_set_ot_dhw_enabled(cJSON_IsTrue(ot_dhw_en));
+            um_ot_set_dhw_en(cJSON_IsTrue(ot_dhw_en));
+            // um_nvs_set_ot_dhw_enabled(cJSON_IsTrue(ot_dhw_en));
         }
         if (cJSON_IsNumber(ot_dhw_sp))
         {
-            um_nvs_set_ot_dhw_setpoint((uint8_t)ot_dhw_sp->valueint);
+            um_ot_set_dhw_setpoint((uint8_t)ot_dhw_sp->valueint);
+            // um_nvs_set_ot_dhw_setpoint();
         }
         if (cJSON_IsBool(ot_ch2_en))
         {
-            um_nvs_set_ot_ch2_enabled(cJSON_IsTrue(ot_ch2_en));
+            um_ot_set_ch2(cJSON_IsTrue(ot_ch2_en));
+            // um_nvs_set_ot_ch2_enabled(cJSON_IsTrue(ot_ch2_en));
         }
         if (cJSON_IsBool(ot_cool_en))
         {
@@ -887,12 +893,14 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
         }
         if (cJSON_IsNumber(ot_mod))
         {
-            um_nvs_set_ot_modulation((uint8_t)ot_mod->valueint);
+            um_ot_set_modulation_level((uint8_t)ot_mod->valueint);
+            // um_nvs_set_ot_modulation((uint8_t)ot_mod->valueint);
         }
         // TODO um_nvs_set_ot_heating_curve_ratio();
         if (cJSON_IsBool(ot_otc_en))
         {
-            um_nvs_set_ot_outdoor_temp_comp(cJSON_IsTrue(ot_otc_en));
+            um_ot_set_otc_en(cJSON_IsTrue(ot_otc_en));
+            // um_nvs_set_ot_outdoor_temp_comp(cJSON_IsTrue(ot_otc_en));
         }
 #endif
     }
