@@ -9,6 +9,8 @@
 #include "esp_log.h"
 #include "esp_err.h"
 #include "um_nvs.h"
+#include "um_events.h"
+#include "um_capabilities.h"
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
 
@@ -186,6 +188,16 @@ esp_err_t um_opencollectors_set(um_oc_channel_t channel, um_oc_state_t state)
 
         um_opencollectors_save_to_nvs();
 
+        um_event_sensor_payload_t payload = {
+            .category = UM_CATEGORY_OPENCOLLECTORS,
+            .capability = UM_CAP_OC1,
+            .serial = NULL,
+            .value = state};
+        um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                         &payload,
+                         sizeof(um_event_sensor_payload_t),
+                         portMAX_DELAY);
+
         return ESP_OK;
 #else
         ESP_LOGE(TAG, "OC1 not enabled in Kconfig");
@@ -206,6 +218,18 @@ esp_err_t um_opencollectors_set(um_oc_channel_t channel, um_oc_state_t state)
         channels[UM_OC_CHANNEL_2].state = state;
         gpio_set_level(channels[UM_OC_CHANNEL_2].gpio_num, state_to_level(state));
         ESP_LOGI(TAG, "OC2 set to %s", state == UM_OC_STATE_ON ? "ON" : "OFF");
+
+        um_opencollectors_save_to_nvs();
+
+        um_event_sensor_payload_t payload = {
+            .category = UM_CATEGORY_OPENCOLLECTORS,
+            .capability = UM_CAP_OC2,
+            .serial = NULL,
+            .value = state};
+        um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                         &payload,
+                         sizeof(um_event_sensor_payload_t),
+                         portMAX_DELAY);
         return ESP_OK;
 #else
         ESP_LOGE(TAG, "OC2 not enabled in Kconfig");

@@ -113,7 +113,56 @@ static void input_monitor_task(void *arg)
                             ESP_LOGI(TAG, "Input %d (iter-%d) changed: %d -> %d",
                                      input_index_map[i], i + 1, old_state, new_bit);
 
+                            uint8_t cap = UM_CAP_NONE;
+
+                            /* Check if specific output is enabled */
+                            switch (input_index_map[i])
+                            {
+#if UM_FEATURE_ENABLED(INP1)
+                            case CONFIG_UM_CFG_INP1_INDEX:
+                                cap = UM_CAP_INP1;
+                                break;
+#endif
+#if UM_FEATURE_ENABLED(INP2)
+                            case CONFIG_UM_CFG_INP2_INDEX:
+                                cap = UM_CAP_INP2;
+                                break;
+#endif
+#if UM_FEATURE_ENABLED(INP3)
+                            case CONFIG_UM_CFG_INP3_INDEX:
+                                cap = UM_CAP_INP3;
+                                break;
+#endif
+#if UM_FEATURE_ENABLED(INP4)
+                            case CONFIG_UM_CFG_INP4_INDEX:
+                                cap = UM_CAP_INP4;
+                                break;
+#endif
+#if UM_FEATURE_ENABLED(INP5)
+                            case CONFIG_UM_CFG_INP5_INDEX:
+                                cap = UM_CAP_INP5;
+                                break;
+#endif
+#if UM_FEATURE_ENABLED(INP6)
+                            case CONFIG_UM_CFG_INP6_INDEX:
+                                cap = UM_CAP_INP6;
+                                break;
+#endif
+                            default:
+                                ESP_LOGE(TAG, "Input %d not enabled", input_index_map[i]);
+                                continue;
+                            }
+
                             int state = (int)new_bit;
+                            um_event_sensor_payload_t payload = {
+                                .category = UM_CATEGORY_INPUTS,
+                                .capability = (uint8_t)cap,
+                                .serial = NULL,
+                                .value = state};
+                            um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                                             &payload,
+                                             sizeof(um_event_sensor_payload_t),
+                                             portMAX_DELAY);
 #if UM_FEATURE_ENABLED(MQTT)
                             um_capability_t cap = (um_capability_t)(UM_CAP_INP1 + i); // тк объявлены друг за другом!
                             um_mqtt_sensor_payload_t payload = {

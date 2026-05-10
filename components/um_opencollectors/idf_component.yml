@@ -3,6 +3,9 @@ dependencies:
     version: '>=5.5.2'
   espressif/cjson:
     version: "*"
+  um_events:
+    path: ../um_events
+    version: "*"
   um_nvs:
     path: ../um_nvs
     version: "*"  
