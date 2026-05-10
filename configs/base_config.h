@@ -30,3 +30,11 @@
             code_if_disabled                                           \
         }                                                              \
     } while (0)
+
+#define UM_CATEGORY_AI "ai"
+#define UM_CATEGORY_NTC "ntc"
+#define UM_CATEGORY_INPUTS "inputs"
+#define UM_CATEGORY_OUTPUTS "outputs"
+#define UM_CATEGORY_ONEWIRE "onewire"
+#define UM_CATEGORY_OPENTHERM "ot"
+#define UM_CATEGORY_OPENCOLLECTORS "oc"

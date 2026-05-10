@@ -18,6 +18,7 @@ extern "C"
 
 /* NVS Key Definitions */
 #define UM_NVS_KEY_INSTALLED "inst"
+#define UM_NVS_KEY_TITLE "title"
 #define UM_NVS_KEY_HOSTNAME "name"
 #define UM_NVS_KEY_MACNAME "macname"
 #define UM_NVS_KEY_USERNAME "admusr"
@@ -63,6 +64,7 @@ extern "C"
 #define UM_NVS_KEY_WEBHOOKS_URL "whkurl"
 #define UM_NVS_KEY_OPENCOLLECTORS "ocols"
 #define UM_NVS_KEY_WEBSERVER_TOKEN "httptoken"
+#define UM_NVS_KEY_SOCKET_PORT "sockp"
 
 /* Default Values */
 #define UM_NVS_DEFAULT_NTP "0.ru.pool.ntp.org"
@@ -83,6 +85,7 @@ extern "C"
 #define UM_NVS_DEFAULT_MQTT_ENABLED 0
 #define UM_NVS_DEFAULT_MQTT_PORT 1883
 #define UM_NVS_DEFAULT_WEBHOOKS 0
+#define UM_NVS_DEFAULT_SOCKET_PORT 514
 
 /* Network Mode Definitions */
 #define UM_NVS_NETWORK_MODE_ETH 1
@@ -392,6 +395,11 @@ extern "C"
     /* Webhooks Setters */
     esp_err_t um_nvs_set_webhooks_enabled(bool enabled);
     esp_err_t um_nvs_set_webhooks_url(const char *url);
+
+    /* Socket */
+    esp_err_t um_nvs_get_socket_port(uint16_t *port);
+
+    esp_err_t um_nvs_set_socket_port(uint16_t port);
 
 #ifdef __cplusplus
 }

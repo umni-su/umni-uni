@@ -296,6 +296,11 @@ esp_err_t um_nvs_initialize_with_defaults(void)
     if (res != ESP_OK)
         err = res;
 
+    /* Socket port*/
+    res = um_nvs_write_u16(UM_NVS_KEY_SOCKET_PORT, UM_NVS_DEFAULT_SOCKET_PORT);
+    if (res != ESP_OK)
+        err = res;
+
     ESP_LOGI(TAG, "NVS initialized with default values");
     return err;
 }
@@ -1268,4 +1273,19 @@ esp_err_t um_nvs_set_webhooks_enabled(bool enabled)
 esp_err_t um_nvs_set_webhooks_url(const char *url)
 {
     return um_nvs_write_str(UM_NVS_KEY_WEBHOOKS_URL, url);
+}
+
+/* Socket port*/
+esp_err_t um_nvs_get_socket_port(uint16_t *port)
+{
+    if (port == NULL)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+    return um_nvs_read_u16(UM_NVS_KEY_SOCKET_PORT, port);
+}
+
+esp_err_t um_nvs_set_socket_port(uint16_t port)
+{
+    return um_nvs_write_u16(UM_NVS_KEY_SOCKET_PORT, port);
 }

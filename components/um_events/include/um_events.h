@@ -38,9 +38,21 @@ extern "C"
         UMNI_EVENT_MQTT_CONFIG_ONEWIRE,
         UMNI_EVENT_MQTT_CONFIG_ADC,
         UMNI_EVENT_MQTT_CONFIG_NTC,
-        UMNI_EVENT_MQTT_CONFIG_RF433
+        UMNI_EVENT_MQTT_CONFIG_RF433,
+        UMNI_EVENT_SENSOR_CHANGED,
+        UMNI_EVENT_OUTPUT_CHANGED,
+        UMNI_EVENT_INPUT_CHANGED,
+        UMNI_EVENT_OPENCOLLECTOR_CHANGED,
 
     } umn_event_id_t;
+
+    typedef struct
+    {
+        char *category;
+        uint8_t capability;
+        float value;
+        const char *serial;
+    } um_event_sensor_payload_t;
 
     /**
      * @brief Event handler function type

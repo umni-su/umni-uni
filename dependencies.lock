@@ -397,6 +397,12 @@ dependencies:
       path: components\um_sd
       type: local
     version: 1.0.0
+  um_sse_server:
+    dependencies: []
+    source:
+      path: components\um_sse_server
+      type: local
+    version: 1.0.0
   um_storage:
     dependencies: []
     source:
@@ -435,8 +441,9 @@ direct_dependencies:
 - um_opentherm
 - um_rf433
 - um_sd
+- um_sse_server
 - um_storage
 - um_store
-manifest_hash: da34e1d061b9361020ae0fa63d8cee51f4059ff24fdb7a68992fe2815598d959
+manifest_hash: a66679afaea526aea4b13c6126a0f189764a78779aeeeb0d134cd2e1d92c0737
 target: esp32
 version: 3.0.0

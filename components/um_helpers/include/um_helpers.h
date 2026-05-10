@@ -55,6 +55,8 @@ esp_err_t um_helpers_mdns_init(void);
 // Добавление базовых сервисов для обнаружения
 esp_err_t um_mdns_add_basic_services(void);
 
+esp_err_t um_helpers_get_hostname(char **hostname);
+
 // Добавление кастомного сервиса
 esp_err_t um_mdns_add_service(const char *instance_name,
                               const char *service_type,
@@ -64,3 +66,5 @@ esp_err_t um_mdns_add_service(const char *instance_name,
                               size_t txt_count);
 
 esp_err_t um_mdns_add_discovery(void);
+
+bool um_helpers_mdns_running(void);

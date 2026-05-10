@@ -8,6 +8,7 @@
 #include "um_helpers.h"
 #include "um_webserver.h"
 #include "um_capabilities.h"
+#include "um_sse_server.h"
 
 #if UM_FEATURE_ENABLED(BUZZER)
 #include "um_buzzer.h"
@@ -1008,11 +1009,11 @@ esp_err_t um_webserver_start(void)
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 20;
     config.stack_size = 8192;
-    config.max_open_sockets = 7;      // Максимум открытых сокетов (по умолчанию 7)
-    config.lru_purge_enable = true;   // Включить LRU очистку старых соединений
-    config.recv_wait_timeout = 5;     // Таймаут приема (сек)
-    config.send_wait_timeout = 5;     // Таймаут отправки (сек)
-    config.keep_alive_enable = false; // Отключить Keep-Alive (освобождает сокеты)
+    config.max_open_sockets = CONFIG_LWIP_MAX_SOCKETS - 3; // Максимум открытых сокетов (по умолчанию CONFIG_LWIP_MAX_SOCKETS)
+    config.lru_purge_enable = true;                        // Включить LRU очистку старых соединений
+    config.recv_wait_timeout = 5;                          // Таймаут приема (сек)
+    config.send_wait_timeout = 5;                          // Таймаут отправки (сек)
+    config.keep_alive_enable = false;                      // Отключить Keep-Alive (освобождает сокеты)
 
     // Запуск сервера
     esp_err_t ret = httpd_start(&server, &config);
@@ -1031,6 +1032,8 @@ esp_err_t um_webserver_start(void)
     um_webserver_register_post("/api/settings", um_webserver_save_settings_handler);
     um_webserver_register_post("/api/state", um_webserver_state_handler);
 
+    um_sse_server_init(server, "/sse/events");
+
     // Обработчик для корневого пути (статический HTML)
     httpd_uri_t root_uri = {
         .uri = "/",
@@ -1048,6 +1051,7 @@ esp_err_t um_webserver_start(void)
     httpd_register_uri_handler(server, &index_uri);
 
     ESP_LOGI(WEBSERVER_TAG, "Web-server started successfully");
+
     return ESP_OK;
 err_start:
     free(rest_context);

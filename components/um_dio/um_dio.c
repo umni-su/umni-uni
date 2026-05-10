@@ -17,7 +17,7 @@
 #include "string.h"
 #include "base_config.h"
 #include "i2cdev.h"
-
+#include "um_events.h"
 #include "um_capabilities.h"
 
 #if UM_FEATURE_ENABLED(MQTT)
@@ -269,14 +269,14 @@ static esp_err_t init_input_pcf8574(void)
 }
 
 /* Map channel index to port bit position */
-static uint8_t get_output_bit_position(uint8_t output_idx)
-{
-    if (output_idx >= sizeof(output_index_map))
-    {
-        return 0;
-    }
-    return output_index_map[output_idx] - 1; // Convert to 0-based bit position
-}
+// static uint8_t get_output_bit_position(uint8_t output_idx)
+// {
+//     if (output_idx >= sizeof(output_index_map))
+//     {
+//         return 0;
+//     }
+//     return output_index_map[output_idx] - 1; // Convert to 0-based bit position
+// }
 
 static uint8_t get_input_bit_position(uint8_t input_idx)
 {
@@ -536,6 +536,15 @@ esp_err_t um_dio_set_output(um_do_port_index_t output_idx, um_do_level_t level)
     }
     if (cap > 0)
     {
+        um_event_sensor_payload_t payload = {
+            .category = UM_CATEGORY_OUTPUTS,
+            .capability = (uint8_t)cap,
+            .serial = NULL,
+            .value = level};
+        um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                         &payload,
+                         sizeof(um_event_sensor_payload_t),
+                         portMAX_DELAY);
 #if UM_FEATURE_ENABLED(MQTT)
         um_mqtt_sensor_payload_t payload = {
             .category = UM_MQTT_TOPIC_OUTPUTS,

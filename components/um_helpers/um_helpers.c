@@ -19,6 +19,7 @@ const char *TAG = "helpers";
 static const char *MDNS_TAG = "mdns";
 
 bool s_time_synced = false;
+bool s_mdns_init = false;
 
 // Инициализация SNTP
 void um_helpers_time_init(void)
@@ -342,8 +343,15 @@ esp_err_t um_helpers_get_systeminfo(cJSON **data)
     return ESP_OK;
 }
 
+esp_err_t um_helpers_get_hostname(char **hostname)
+{
+    return um_nvs_get_hostname(hostname);
+}
+
 esp_err_t um_helpers_mdns_init(void)
 {
+    if (s_mdns_init)
+        return ESP_OK;
     ESP_LOGI(MDNS_TAG, "Initializing mDNS...");
 
     // Инициализируем mDNS
@@ -383,7 +391,13 @@ esp_err_t um_helpers_mdns_init(void)
     err = um_mdns_add_discovery();
 
     ESP_LOGI(MDNS_TAG, "mDNS initialized successfully");
+    s_mdns_init = true;
     return ESP_OK;
+}
+
+bool um_helpers_mdns_running(void)
+{
+    return s_mdns_init;
 }
 
 // Добавление базовых сервисов для обнаружения
