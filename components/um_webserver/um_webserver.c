@@ -392,7 +392,7 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
         return ESP_ERR_INVALID_ARG;
     }
 
-    // 3. Твоя логика получения данных
+    // 3. Логика получения данных
     char *config_str = NULL;
 
     if (strcmp(section, "onewire") == 0)

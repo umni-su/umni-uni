@@ -263,7 +263,6 @@ static esp_err_t post_set_output(httpd_req_t *req, cJSON *input, cJSON **output)
     int pin_num = pin->valueint;
     bool pin_value = value->valueint != 0;
     
-    // Твоя функция установки выхода
     do_set_level(pin_num, pin_value);
     
     // Возвращаем подтверждение
