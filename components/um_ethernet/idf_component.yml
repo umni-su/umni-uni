@@ -5,7 +5,7 @@ dependencies:
     path: ../um_events
     version: "*"
   espressif/ethernet_init: 
-    require: private
+    require: public
     version: ^1.2.0
 description: UMNI ethernet component
 license: MIT

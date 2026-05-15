@@ -88,6 +88,7 @@ extern "C"
 #define UM_NVS_DEFAULT_SOCKET_PORT 514
 
 /* Network Mode Definitions */
+#define UM_NVS_NETWORK_MODE_NONE 0
 #define UM_NVS_NETWORK_MODE_ETH 1
 #define UM_NVS_NETWORK_MODE_WIFI_AP 2
 #define UM_NVS_NETWORK_MODE_WIFI_STA 3

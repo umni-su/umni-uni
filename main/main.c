@@ -10,13 +10,10 @@
 #include "um_helpers.h"
 #include "um_sse_server.h"
 #include "um_sockets.h"
+#include "um_network.h"
 
 #if UM_FEATURE_ENABLED(WEBHOOKS)
 #include "um_webhooks.h"
-#endif
-
-#if UM_FEATURE_ENABLED(ETHERNET)
-#include "um_ethernet.h"
 #endif
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
@@ -496,10 +493,8 @@ void app_main(void)
         um_onewire_config_apply();
     }
 #endif
-#if UM_FEATURE_ENABLED(ETHERNET)
-    vTaskDelay(pdMS_TO_TICKS(100));
-    um_ethernet_init(NULL);
-#endif
+
+    um_network_init();
 
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");

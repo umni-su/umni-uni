@@ -115,6 +115,10 @@ extern "C"
      */
     uint8_t um_dio_get_input_index(uint8_t number);
 
+    esp_err_t um_dio_get_config_state(bool *state);
+
+    esp_err_t um_dio_get_fn_state(bool *state);
+
 #ifdef __cplusplus
 }
 #endif

@@ -113,7 +113,15 @@ void um_ethernet_reinit(um_eth_config_t *config)
         return;
     }
 
-    ESP_LOGI(TAG, "Reinitializing Ethernet...");
+    um_ethernet_stop();
+
+    // Reinit with new config
+    init_internal(config);
+}
+
+void um_ethernet_stop(void)
+{
+    ESP_LOGI(TAG, "Stopping Ethernet...");
 
     // Stop and cleanup
     for (int i = 0; i < eth_port_cnt; i++)
@@ -130,9 +138,6 @@ void um_ethernet_reinit(um_eth_config_t *config)
     // Unregister handlers
     esp_event_handler_unregister(IP_EVENT, IP_EVENT_ETH_GOT_IP, &got_ip_event_handler);
     esp_event_handler_unregister(ETH_EVENT, ETHERNET_EVENT_DISCONNECTED, &eth_disconnect_event_handler);
-
-    // Reinit with new config
-    init_internal(config);
 }
 
 char *um_ethernet_get_ip(void)

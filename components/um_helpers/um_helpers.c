@@ -15,7 +15,7 @@
 #define DEVICE_NAME_PREFIX "umni-"
 #define DEVICE_NAME_MAX_LEN 32
 
-const char *TAG = "helpers";
+static const char *TAG = "helpers";
 static const char *MDNS_TAG = "mdns";
 
 bool s_time_synced = false;

@@ -1,0 +1,17 @@
+dependencies:
+  idf:
+    version: '>=6.0'
+  um_nvs:
+    path: "../um_nvs"
+  um_ethernet:
+    path: "../um_ethernet"
+    version: "*"
+  um_wifi:
+    path: "../um_eifi"
+    version: "*"
+  um_dio:
+    path: "../um_dio"
+    version: "*"
+description: UMNI network component
+license: MIT
+version: 1.0.0

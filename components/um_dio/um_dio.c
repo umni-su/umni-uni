@@ -38,10 +38,15 @@ static uint8_t input_data = 0xFF;  // Current input states
 static TaskHandle_t input_task_handle = NULL;
 static QueueHandle_t input_queue = NULL;
 
+bool config_mode = false;
+
 /* Configuration constants */
 #define I2C_OUTPUT_ADDR 0x27
 #define I2C_INPUT_ADDR 0x26
 #define INT_PIN CONFIG_UM_CFG_PCF_INT
+
+#define UM_INPUT_PORT_FN_BTN 6
+#define UM_INPUT_PORT_CONFIG 7
 
 /* Input mapping from config index to port index */
 const uint8_t input_index_map[] = {
@@ -417,6 +422,20 @@ esp_err_t um_dio_init(void)
     free(cdio);
 
     ESP_LOGI(TAG, "DIO module initialized successfully");
+    return ESP_OK;
+}
+
+esp_err_t um_dio_get_config_state(bool *state)
+{
+    uint8_t bit_pos = get_input_bit_position(UM_INPUT_PORT_CONFIG);
+    *state = (input_data >> bit_pos) & 0x01;
+    return ESP_OK;
+}
+
+esp_err_t um_dio_get_fn_state(bool *state)
+{
+    uint8_t bit_pos = get_input_bit_position(UM_INPUT_PORT_FN_BTN);
+    *state = (input_data >> bit_pos) & 0x01;
     return ESP_OK;
 }
 

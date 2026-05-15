@@ -337,6 +337,12 @@ dependencies:
       path: components\um_dio
       type: local
     version: 1.0.0
+  um_ethernet:
+    dependencies: []
+    source:
+      path: components\um_ethernet
+      type: local
+    version: 1.0.0
   um_events:
     dependencies: []
     source:
@@ -415,6 +421,12 @@ dependencies:
       path: components\um_store
       type: local
     version: 1.0.0
+  um_wifi:
+    dependencies: []
+    source:
+      path: components\um_wifi
+      type: local
+    version: 1.0.0
 direct_dependencies:
 - esp-idf-lib/ds18x20
 - esp-idf-lib/onewire
@@ -431,6 +443,7 @@ direct_dependencies:
 - um_buzzer
 - um_capabilities
 - um_dio
+- um_ethernet
 - um_events
 - um_helpers
 - um_mqtt
@@ -444,6 +457,7 @@ direct_dependencies:
 - um_sse_server
 - um_storage
 - um_store
-manifest_hash: 83e37c4d36124b86889313b475442931c25b7b61c82c743878326de0a761cee1
+- um_wifi
+manifest_hash: bc7447a44647d38ce8a35ba1bbfe6b97c843dc1a5f3e5808b19434358aa5b606
 target: esp32
 version: 3.0.0

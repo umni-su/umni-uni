@@ -36,6 +36,8 @@ extern "C"
     // Переинициализация с новой конфигурацией
     void um_ethernet_reinit(um_eth_config_t *config);
 
+    void um_ethernet_stop(void);
+
     // Получить текущий IP (выделяет память, нужно освободить free())
     char *um_ethernet_get_ip(void);
 
