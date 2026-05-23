@@ -258,3 +258,38 @@ esp_err_t um_onewire_config_create_default()
     um_onewire_config_apply();
     return um_onewire_config_save();
 }
+
+char *um_onewire_get_all_sensors_json(void)
+{
+    const um_onewire_state_t *state = um_onewire_get_state();
+    cJSON *root = cJSON_CreateArray();
+
+    for (int i = 0; i < state->sensor_count; i++)
+    {
+        const um_onewire_sensor_t *sensor = &state->sensors[i];
+
+        cJSON *item = cJSON_CreateObject();
+        cJSON_AddStringToObject(item, "serial", sensor->serial);
+        cJSON_AddNumberToObject(item, "type", sensor->type);
+        cJSON_AddNumberToObject(item, "temperature", sensor->temperature);
+        cJSON_AddBoolToObject(item, "active", sensor->active);
+        cJSON_AddNumberToObject(item, "calibration", sensor->calibration);
+
+        // Добавляем label из конфига если есть
+        const um_onewire_sensor_config_t *config = um_onewire_config_get(sensor->serial);
+        if (config && strlen(config->label) > 0)
+        {
+            cJSON_AddStringToObject(item, "label", config->label);
+        }
+        if (config && strlen(config->location) > 0)
+        {
+            cJSON_AddStringToObject(item, "location", config->location);
+        }
+
+        cJSON_AddItemToArray(root, item);
+    }
+
+    char *json_str = cJSON_PrintUnformatted(root);
+    cJSON_Delete(root);
+    return json_str;
+}

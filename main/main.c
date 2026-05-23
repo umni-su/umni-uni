@@ -207,10 +207,16 @@ void um_main_event_handler(void *arg, esp_event_base_t base, int32_t id, void *d
 // Обработчик события получения IP
 void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
+    if (eth_connected)
+        return;
     switch (id)
     {
     case UMNI_EVENT_ETH_CONNECTED:
         eth_connected = true;
+        has_connection = true;
+        break;
+    case UMNI_EVENT_WIFI_CONNECTED:
+        wifi_connected = true;
         has_connection = true;
         break;
     default:
@@ -241,11 +247,20 @@ void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, voi
 // Обработчик событий отключения от сети
 void um_main_disconnected_handler(void *arg, esp_event_base_t base, int32_t id, void *data)
 {
+    if (!eth_connected)
+        return;
     switch (id)
     {
     case UMNI_EVENT_ETH_DISCONNECTED:
         eth_connected = false;
         if (!wifi_connected)
+        {
+            has_connection = false;
+        }
+        break;
+    case UMNI_EVENT_WIFI_DISCONNECTED:
+        wifi_connected = false;
+        if (!eth_connected)
         {
             has_connection = false;
         }
@@ -423,11 +438,21 @@ void app_main(void)
     um_storage_init("/spiffs", NULL, 5, true);
     um_nvs_get_hostname(&hostname);
 
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, um_main_event_handler, NULL));
+
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_CONNECTED, um_main_connected_handler, NULL));
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_DISCONNECTED, um_main_disconnected_handler, NULL));
+
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_WIFI_CONNECTED, um_main_connected_handler, NULL));
+    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_WIFI_DISCONNECTED, um_main_disconnected_handler, NULL));
+
     // Создаем очередь для сенсоров
     sensor_queue = xQueueCreate(20, sizeof(sensor_queue_item_t));
 
     // Создаем отдельную задачу для обработки очереди (СТЕК 8192 вместо 4096)
     xTaskCreate(publisher_task, "sensor_pub", 8192, NULL, 2, &publisher_task_handle);
+
+    um_network_init();
 
 #if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2) || UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
     esp_err_t ret_adc = um_adc_common_init();
@@ -455,10 +480,6 @@ void app_main(void)
 #endif
     }
 #endif
-
-    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, um_main_event_handler, NULL));
-    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_CONNECTED, um_main_connected_handler, NULL));
-    ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_DISCONNECTED, um_main_disconnected_handler, NULL));
 
 #if UM_FEATURE_ENABLED(OPENCOLLECTORS)
     um_opencollectors_init();
@@ -491,10 +512,9 @@ void app_main(void)
             um_onewire_config_load();
         }
         um_onewire_config_apply();
+        um_onewire_config_save();
     }
 #endif
-
-    um_network_init();
 
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Приложение запущено успешно!");

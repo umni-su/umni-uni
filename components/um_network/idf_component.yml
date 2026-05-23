@@ -7,7 +7,7 @@ dependencies:
     path: "../um_ethernet"
     version: "*"
   um_wifi:
-    path: "../um_eifi"
+    path: "../um_wifi"
     version: "*"
   um_dio:
     path: "../um_dio"

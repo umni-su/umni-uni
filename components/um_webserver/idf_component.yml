@@ -47,6 +47,9 @@ dependencies:
   um_rf433:
     path: ../um_rf433
     version: "*"
+  um_wifi:
+    path: ../um_wifi
+    version: "*"
 description: UMNI webserver component
 license: MIT
 version: 1.0.0

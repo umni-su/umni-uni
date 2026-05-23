@@ -5,6 +5,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "driver/gpio.h"
+#include "um_store.h"
 
 #if defined(CONFIG_UM_FEATURE_ONEWIRE)
 
@@ -110,6 +111,8 @@ uint8_t um_onewire_scan(void)
                 // Преобразуем адрес в строку
                 um_onewire_address_to_string(addr, onewire_state.sensors[found].serial);
 
+                um_store_create(onewire_state.sensors[found].serial);
+
                 ESP_LOGI(TAG, "Found sensor: %s (type: %s)",
                          onewire_state.sensors[found].serial,
                          um_onewire_sensor_type_to_string(type));
@@ -211,6 +214,8 @@ esp_err_t um_onewire_read_temperature(uint64_t address, float *temperature)
             if (res == ESP_OK)
             {
                 onewire_state.sensors[i].temperature = *temperature;
+                um_store_t *s = um_store_find_store(onewire_state.sensors[i].serial);
+                um_store_add_value(s, onewire_state.sensors[i].temperature);
             }
             return res;
         }

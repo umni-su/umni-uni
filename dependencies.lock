@@ -458,6 +458,6 @@ direct_dependencies:
 - um_storage
 - um_store
 - um_wifi
-manifest_hash: bc7447a44647d38ce8a35ba1bbfe6b97c843dc1a5f3e5808b19434358aa5b606
+manifest_hash: 61ceb0ac26f29950089e6acc1c41b9fea5d912dd500fea9964cd9157a924a567
 target: esp32
 version: 3.0.0

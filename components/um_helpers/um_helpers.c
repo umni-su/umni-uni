@@ -26,18 +26,22 @@ void um_helpers_time_init(void)
 {
     if (s_time_synced)
         return;
-    ESP_LOGI(TAG, "Initializing SNTP...");
     esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
     char *ntp_server = NULL;
     um_nvs_get_ntp(&ntp_server);
     if (ntp_server != NULL)
     {
+        ESP_LOGI(TAG, "Initializing SNTP %s...", ntp_server);
         esp_sntp_setservername(0, ntp_server);
     }
     else
     {
+        ESP_LOGI(TAG, "Initializing SNTP with default server");
         esp_sntp_setservername(0, "0.ru.pool.ntp.org");
     }
+
+    esp_sntp_setservername(2, "1.ru.pool.ntp.org");
+    esp_sntp_setservername(2, "2.ru.pool.ntp.org");
 
     esp_sntp_init();
 
@@ -45,7 +49,7 @@ void um_helpers_time_init(void)
     time_t now = 0;
     struct tm timeinfo = {0};
     int retry = 0;
-    const int max_retry = 20;
+    const int max_retry = 10;
 
     while (timeinfo.tm_year < (2020 - 1900) && ++retry < max_retry)
     {
@@ -65,7 +69,7 @@ void um_helpers_time_init(void)
     else
     {
         ESP_LOGW(TAG, "Failed to sync time, using uptime (relative timestamps)");
-        s_time_synced = false;
+        s_time_synced = true; // TODO false and normal resync task
     }
 }
 

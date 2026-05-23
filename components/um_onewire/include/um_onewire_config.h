@@ -69,6 +69,8 @@ extern "C"
      */
     esp_err_t um_onewire_config_create_default();
 
+    char *um_onewire_get_all_sensors_json(void);
+
 #ifdef __cplusplus
 }
 #endif

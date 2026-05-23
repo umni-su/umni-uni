@@ -10,6 +10,10 @@
 #include "um_capabilities.h"
 #include "um_sse_server.h"
 
+#if UM_FEATURE_ENABLED(WIFI)
+#include "um_wifi.h"
+#endif
+
 #if UM_FEATURE_ENABLED(BUZZER)
 #include "um_buzzer.h"
 #endif
@@ -392,6 +396,20 @@ static esp_err_t get_systeminfo(httpd_req_t *req, cJSON **data)
     return um_helpers_get_systeminfo(data);
 }
 
+static void um_restart(void *arg)
+{
+    vTaskDelay(10); // время на отдачу ответа сервера по перезагрузке
+    esp_restart();
+    vTaskDelete(NULL);
+}
+
+static esp_err_t um_webserver_reboot_handler(httpd_req_t *req, cJSON **data)
+{
+    xTaskCreatePinnedToCore(um_restart, "restart", configMINIMAL_STACK_SIZE, NULL, 2, NULL, 0);
+    *data = cJSON_CreateObject();
+    return ESP_FAIL;
+}
+
 static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
 {
     char section[32] = {0};
@@ -423,7 +441,7 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     if (strcmp(section, "onewire") == 0)
     {
 #if UM_FEATURE_ENABLED(ONEWIRE)
-        config_str = um_onewire_config_read();
+        config_str = um_onewire_get_all_sensors_json();
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif
@@ -595,7 +613,6 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
             result = cJSON_CreateObject();
             if (cap == UM_CAP_OPENTHERM)
             {
-                //
                 char *ot_json = um_ot_get_status_json();
                 data = cJSON_Parse(ot_json);
                 free(ot_json);
@@ -627,6 +644,38 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
                 int ai2 = 0;
                 um_adc_get_last_raw(UM_ADC_CHANNEL_2, &ai2);
                 cJSON_AddNumberToObject(data, "value", ai2);
+            }
+            else if (cap == UM_CAP_ONEWIRE)
+            {
+                data = cJSON_CreateArray();
+                const um_onewire_state_t *state = um_onewire_get_state();
+
+                for (int i = 0; i < state->sensor_count; i++)
+                {
+                    cJSON *sensor = cJSON_CreateObject();
+                    cJSON_AddStringToObject(sensor, "serial", state->sensors[i].serial);
+                    cJSON_AddNumberToObject(sensor, "temp", state->sensors[i].temperature);
+                    um_store_t *ow_sensor_store = um_store_find_store(state->sensors[i].serial);
+                    if (ow_sensor_store == NULL)
+                    {
+                        cJSON_AddNullToObject(sensor, "history");
+                    }
+                    else
+                    {
+                        char *ow_sensor_history = um_store_to_json(ow_sensor_store);
+                        if (ow_sensor_history != NULL)
+                        {
+                            cJSON *ow_history = cJSON_Parse(ow_sensor_history);
+                            cJSON_AddItemToObject(sensor, "history", ow_history);
+                        }
+                        else
+                        {
+                            cJSON_AddNullToObject(sensor, "history");
+                        }
+                        cJSON_AddItemToArray(data, sensor);
+                        free(ow_sensor_history);
+                    }
+                }
             }
 
             cJSON_AddItemToObject(result, "state", data);
@@ -978,6 +1027,20 @@ static esp_err_t um_webserver_configuration_handler(httpd_req_t *req, cJSON *inp
 {
     // ========== СИСТЕМНЫЕ НАСТРОЙКИ ==========
 
+    bool change_credentials = false;
+    cJSON *set_credentials = cJSON_GetObjectItem(input, "set_credentials");
+    if (cJSON_IsBool(set_credentials))
+    {
+        change_credentials = cJSON_IsTrue(set_credentials);
+    }
+
+    bool change_token = false;
+    cJSON *set_token = cJSON_GetObjectItem(input, "set_token");
+    if (cJSON_IsBool(set_token))
+    {
+        change_token = cJSON_IsTrue(set_token);
+    }
+
     cJSON *title = cJSON_GetObjectItem(input, "title");
     if (cJSON_IsString(title) && strlen(title->valuestring) > 0)
     {
@@ -985,18 +1048,29 @@ static esp_err_t um_webserver_configuration_handler(httpd_req_t *req, cJSON *inp
         ESP_LOGI(REST_TAG, "Title saved: %s", title->valuestring);
     }
 
-    cJSON *username = cJSON_GetObjectItem(input, "username");
-    if (cJSON_IsString(username) && strlen(username->valuestring) > 0)
+    if (change_credentials)
     {
-        um_nvs_write_str(UM_NVS_KEY_USERNAME, username->valuestring);
-        ESP_LOGI(REST_TAG, "Username saved");
-    }
+        cJSON *username = cJSON_GetObjectItem(input, "username");
+        if (cJSON_IsString(username) && strlen(username->valuestring) > 0)
+        {
+            um_nvs_write_str(UM_NVS_KEY_USERNAME, username->valuestring);
+            ESP_LOGI(REST_TAG, "Username saved");
+        }
+        else
+        {
+            um_nvs_delete_key(UM_NVS_KEY_USERNAME);
+        }
 
-    cJSON *password = cJSON_GetObjectItem(input, "password");
-    if (cJSON_IsString(password) && strlen(password->valuestring) > 0)
-    {
-        um_nvs_write_str(UM_NVS_KEY_PASSWORD, password->valuestring);
-        ESP_LOGI(REST_TAG, "Password saved");
+        cJSON *password = cJSON_GetObjectItem(input, "password");
+        if (cJSON_IsString(password) && strlen(password->valuestring) > 0)
+        {
+            um_nvs_write_str(UM_NVS_KEY_PASSWORD, password->valuestring);
+            ESP_LOGI(REST_TAG, "Password saved");
+        }
+        else
+        {
+            um_nvs_delete_key(UM_NVS_KEY_PASSWORD);
+        }
     }
 
     cJSON *ntp = cJSON_GetObjectItem(input, "ntp");
@@ -1020,11 +1094,18 @@ static esp_err_t um_webserver_configuration_handler(httpd_req_t *req, cJSON *inp
         ESP_LOGI(REST_TAG, "Socket port saved: %d", socket_port->valueint);
     }
 
-    cJSON *token = cJSON_GetObjectItem(input, "token");
-    if (cJSON_IsString(token) && strlen(token->valuestring) > 0)
+    if (change_token)
     {
-        um_nvs_write_str(UM_NVS_KEY_WEBSERVER_TOKEN, token->valuestring);
-        ESP_LOGI(REST_TAG, "Webserver token saved");
+        cJSON *token = cJSON_GetObjectItem(input, "token");
+        if (cJSON_IsString(token) && strlen(token->valuestring) > 0)
+        {
+            um_nvs_write_str(UM_NVS_KEY_WEBSERVER_TOKEN, token->valuestring);
+            ESP_LOGI(REST_TAG, "Webserver token saved");
+        }
+        else
+        {
+            um_nvs_delete_key(UM_NVS_KEY_WEBSERVER_TOKEN);
+        }
     }
 
     // ========== НАСТРОЙКИ СЕТИ ==========
@@ -1160,6 +1241,308 @@ static esp_err_t um_webserver_configuration_handler(httpd_req_t *req, cJSON *inp
 }
 
 /**
+ * @brief GET обработчик для получения всех настроек системы
+ *
+ * Возвращает JSON со всеми настройками
+ */
+static esp_err_t um_webserver_get_configuration(httpd_req_t *req, cJSON **output)
+{
+    cJSON *data = cJSON_CreateObject();
+    if (!data)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+
+    // ========== СИСТЕМНЫЕ НАСТРОЙКИ ==========
+
+    char *title = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_TITLE, &title) == ESP_OK && title)
+    {
+        cJSON_AddStringToObject(data, "title", title);
+        free(title);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "title");
+    }
+
+    char *username = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_USERNAME, &username) == ESP_OK && username)
+    {
+        cJSON_AddStringToObject(data, "username", username);
+        free(username);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "username");
+    }
+
+    // Пароль не возвращаем для безопасности
+    cJSON_AddNullToObject(data, "password");
+
+    char *ntp = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_NTP, &ntp) == ESP_OK && ntp)
+    {
+        cJSON_AddStringToObject(data, "ntp", ntp);
+        free(ntp);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "ntp");
+    }
+
+    char *timezone = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_TIMEZONE, &timezone) == ESP_OK && timezone)
+    {
+        cJSON_AddStringToObject(data, "timezone", timezone);
+        free(timezone);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "timezone");
+    }
+
+    uint16_t socket_port = 0;
+    if (um_nvs_read_u16(UM_NVS_KEY_SOCKET_PORT, &socket_port) == ESP_OK && socket_port > 0)
+    {
+        cJSON_AddNumberToObject(data, "socket_port", socket_port);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "socket_port");
+    }
+
+    char *token = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_WEBSERVER_TOKEN, &token) == ESP_OK && token && strlen(token) > 0)
+    {
+        cJSON_AddStringToObject(data, "token", token);
+        free(token);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "token");
+    }
+
+    // ========== НАСТРОЙКИ СЕТИ ==========
+
+    uint8_t network_mode = 0;
+    if (um_nvs_read_i8(UM_NVS_KEY_NETWORK_MODE, (int8_t *)&network_mode) == ESP_OK && network_mode > 0)
+    {
+        cJSON_AddNumberToObject(data, "network_mode", network_mode);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "network_mode");
+    }
+
+    // ========== НАСТРОЙКИ WIFI STA ==========
+
+    char *wifi_sta_ssid = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_WIFI_STA_SSID, &wifi_sta_ssid) == ESP_OK && wifi_sta_ssid && strlen(wifi_sta_ssid) > 0)
+    {
+        cJSON_AddStringToObject(data, "wifi_sta_ssid", wifi_sta_ssid);
+        free(wifi_sta_ssid);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "wifi_sta_ssid");
+    }
+
+    // Пароль не возвращаем
+    cJSON_AddNullToObject(data, "wifi_sta_password");
+
+    uint8_t wifi_sta_ip_type = 0;
+    if (um_nvs_read_i8(UM_NVS_KEY_WIFI_TYPE, (int8_t *)&wifi_sta_ip_type) == ESP_OK && wifi_sta_ip_type > 0)
+    {
+        cJSON_AddNumberToObject(data, "wifi_sta_ip_type", wifi_sta_ip_type);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "wifi_sta_ip_type");
+    }
+
+    char *wifi_sta_ip = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_WIFI_IP, &wifi_sta_ip) == ESP_OK && wifi_sta_ip && strlen(wifi_sta_ip) > 0)
+    {
+        cJSON_AddStringToObject(data, "wifi_sta_ip", wifi_sta_ip);
+        free(wifi_sta_ip);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "wifi_sta_ip");
+    }
+
+    char *wifi_sta_netmask = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_WIFI_NETMASK, &wifi_sta_netmask) == ESP_OK && wifi_sta_netmask && strlen(wifi_sta_netmask) > 0)
+    {
+        cJSON_AddStringToObject(data, "wifi_sta_netmask", wifi_sta_netmask);
+        free(wifi_sta_netmask);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "wifi_sta_netmask");
+    }
+
+    char *wifi_sta_gateway = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_WIFI_GATEWAY, &wifi_sta_gateway) == ESP_OK && wifi_sta_gateway && strlen(wifi_sta_gateway) > 0)
+    {
+        cJSON_AddStringToObject(data, "wifi_sta_gateway", wifi_sta_gateway);
+        free(wifi_sta_gateway);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "wifi_sta_gateway");
+    }
+
+    char *wifi_sta_dns = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_WIFI_DNS, &wifi_sta_dns) == ESP_OK && wifi_sta_dns && strlen(wifi_sta_dns) > 0)
+    {
+        cJSON_AddStringToObject(data, "wifi_sta_dns", wifi_sta_dns);
+        free(wifi_sta_dns);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "wifi_sta_dns");
+    }
+
+    // ========== НАСТРОЙКИ WIFI AP ==========
+
+    // AP использует те же ключи что и STA для SSID/PWD
+    cJSON_AddStringToObject(data, "wifi_ap_ssid", wifi_sta_ssid ? wifi_sta_ssid : NULL);
+    cJSON_AddNullToObject(data, "wifi_ap_password"); // Пароль не возвращаем
+
+    // ========== НАСТРОЙКИ ETHERNET ==========
+
+    uint8_t eth_ip_type = 0;
+    if (um_nvs_read_i8(UM_NVS_KEY_ETH_TYPE, (int8_t *)&eth_ip_type) == ESP_OK && eth_ip_type > 0)
+    {
+        cJSON_AddNumberToObject(data, "eth_ip_type", eth_ip_type);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "eth_ip_type");
+    }
+
+    char *eth_ip = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_ETH_IP, &eth_ip) == ESP_OK && eth_ip && strlen(eth_ip) > 0)
+    {
+        cJSON_AddStringToObject(data, "eth_ip", eth_ip);
+        free(eth_ip);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "eth_ip");
+    }
+
+    char *eth_netmask = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_ETH_NETMASK, &eth_netmask) == ESP_OK && eth_netmask && strlen(eth_netmask) > 0)
+    {
+        cJSON_AddStringToObject(data, "eth_netmask", eth_netmask);
+        free(eth_netmask);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "eth_netmask");
+    }
+
+    char *eth_gateway = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_ETH_GATEWAY, &eth_gateway) == ESP_OK && eth_gateway && strlen(eth_gateway) > 0)
+    {
+        cJSON_AddStringToObject(data, "eth_gateway", eth_gateway);
+        free(eth_gateway);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "eth_gateway");
+    }
+
+    char *eth_dns = NULL;
+    if (um_nvs_read_str(UM_NVS_KEY_ETH_DNS, &eth_dns) == ESP_OK && eth_dns && strlen(eth_dns) > 0)
+    {
+        cJSON_AddStringToObject(data, "eth_dns", eth_dns);
+        free(eth_dns);
+    }
+    else
+    {
+        cJSON_AddNullToObject(data, "eth_dns");
+    }
+
+    *output = data;
+    return ESP_OK;
+}
+
+const char *get_auth_mode_name(uint8_t authmode)
+{
+    switch (authmode)
+    {
+    case 0:
+        return "Open";
+    case 1:
+        return "WEP";
+    case 2:
+        return "WPA-PSK";
+    case 3:
+        return "WPA2-PSK";
+    case 4:
+        return "WPA/WPA2";
+    case 5:
+        return "Enterprise";
+    case 6:
+        return "WPA3-PSK";
+    case 7:
+        return "WPA2/WPA3";
+    case 8:
+        return "WAPI";
+    default:
+        return "Unknown";
+    }
+}
+
+static esp_err_t um_webserver_get_wifi_networks(httpd_req_t *req, cJSON **output)
+{
+    cJSON *res = cJSON_CreateArray();
+
+#if UM_FEATURE_ENABLED(WIFI)
+
+    uint16_t ap_count = 0;
+    wifi_ap_record_t *aps = um_wifi_scan(&ap_count);
+
+    if (aps && ap_count > 0)
+    {
+
+        for (int i = 0; i < ap_count; i++)
+        {
+            cJSON *net = cJSON_CreateObject();
+            cJSON_AddStringToObject(net, "ssid", (const char *)aps[i].ssid);
+            cJSON_AddNumberToObject(net, "rssi", aps[i].rssi);
+            cJSON_AddNumberToObject(net, "channel", aps[i].primary);
+            cJSON_AddNumberToObject(net, "authmode", aps[i].authmode);
+            cJSON_AddStringToObject(net, "authmode_name", get_auth_mode_name(aps[i].authmode));
+
+            cJSON_AddItemToArray(res, net);
+            ESP_LOGI("SCAN", "  %d. %s | RSSI: %d | Channel: %d | Auth: %d",
+                     i + 1,
+                     aps[i].ssid,
+                     aps[i].rssi,
+                     aps[i].primary,
+                     aps[i].authmode);
+        }
+
+        *output = res;
+
+        free(aps);
+    }
+    else
+    {
+        ESP_LOGW("SCAN", "No networks found");
+    }
+
+#endif
+
+    return ESP_OK;
+}
+
+/**
  * @brief Обработчик для статических файлов
  */
 static esp_err_t um_webserver_static_handler(httpd_req_t *req)
@@ -1277,12 +1660,15 @@ esp_err_t um_webserver_start(void)
 
     um_webserver_register_get("/api/systeminfo", get_systeminfo);
     um_webserver_register_get("/api/conf", get_config_data);
+    um_webserver_register_get("/api/reboot", um_webserver_reboot_handler);
     um_webserver_register_post("/api/switch", um_webserver_on_off_handler);
     um_webserver_register_post("/api/login", um_webserver_login_handler);
     um_webserver_register_post("/api/beep", um_webserver_beep_handler);
     um_webserver_register_post("/api/settings", um_webserver_save_settings_handler);
     um_webserver_register_post("/api/state", um_webserver_state_handler);
     um_webserver_register_post("/api/configuration", um_webserver_configuration_handler);
+    um_webserver_register_get("/api/configuration", um_webserver_get_configuration);
+    um_webserver_register_get("/api/wifi/scan", um_webserver_get_wifi_networks);
 
     um_sse_server_init(server, "/sse/events");
 

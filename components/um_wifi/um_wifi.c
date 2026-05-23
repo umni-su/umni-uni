@@ -1,6 +1,7 @@
 // um_wifi.c
 #include "um_wifi.h"
 #include "um_events.h"
+#include "esp_event.h"
 
 static const char *TAG = "wifi_basic";
 static esp_netif_t *sta_netif = NULL;
@@ -40,6 +41,7 @@ static void wifi_event_sta_connected_handler(void *arg, esp_event_base_t event_b
                                              int32_t event_id, void *event_data)
 {
     ESP_LOGI(TAG, "WiFi STA connected to AP");
+    um_event_publish(UMNI_EVENT_WIFI_CONNECTED, NULL, 0, portMAX_DELAY);
 }
 
 static void wifi_event_ap_start_handler(void *arg, esp_event_base_t event_base,
@@ -73,6 +75,7 @@ static void wifi_event_ap_stadisconnected_handler(void *arg, esp_event_base_t ev
     if (event_data == NULL)
     {
         ESP_LOGD(TAG, "AP station disconnected event with NULL data");
+        um_event_publish(UMNI_EVENT_WIFI_DISCONNECTED, NULL, sizeof(NULL), portMAX_DELAY);
         return;
     }
 
@@ -199,45 +202,45 @@ static void setup_ap(void)
 static void register_event_handlers(void)
 {
     // Регистрация обработчиков WiFi событий через um_events
-    um_event_subscribe(WIFI_EVENT_STA_START, wifi_event_sta_start_handler, NULL);
-    um_event_subscribe(WIFI_EVENT_STA_CONNECTED, wifi_event_sta_connected_handler, NULL);
-    um_event_subscribe(WIFI_EVENT_STA_DISCONNECTED, wifi_event_disconnected_handler, NULL);
-    um_event_subscribe(WIFI_EVENT_AP_START, wifi_event_ap_start_handler, NULL);
-    um_event_subscribe(WIFI_EVENT_AP_STOP, wifi_event_ap_stop_handler, NULL);
-    um_event_subscribe(WIFI_EVENT_AP_STACONNECTED, wifi_event_ap_staconnected_handler, NULL);
-    um_event_subscribe(WIFI_EVENT_AP_STADISCONNECTED, wifi_event_ap_stadisconnected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, wifi_event_sta_start_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, wifi_event_sta_connected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_event_disconnected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_START, wifi_event_ap_start_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STOP, wifi_event_ap_stop_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, wifi_event_ap_staconnected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, wifi_event_ap_stadisconnected_handler, NULL);
 
     // Регистрация обработчиков IP событий ТОЛЬКО для STA режима
     if (current_config.mode == UM_WIFI_MODE_STA || current_config.mode == UM_WIFI_MODE_APSTA)
     {
-        um_event_subscribe(IP_EVENT_STA_GOT_IP, ip_event_got_ip_handler, NULL);
+        esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_event_got_ip_handler, NULL);
     }
 
     // Это событие для AP режима (когда клиенту выдан IP)
     if (current_config.mode == UM_WIFI_MODE_AP || current_config.mode == UM_WIFI_MODE_APSTA)
     {
-        um_event_subscribe(IP_EVENT_ASSIGNED_IP_TO_CLIENT, ip_event_ap_staipassigned_handler, NULL);
+        esp_event_handler_register(IP_EVENT, IP_EVENT_ASSIGNED_IP_TO_CLIENT, ip_event_ap_staipassigned_handler, NULL);
     }
 }
 
 static void unregister_event_handlers(void)
 {
-    um_event_unsubscribe(WIFI_EVENT_STA_START, wifi_event_sta_start_handler);
-    um_event_unsubscribe(WIFI_EVENT_STA_CONNECTED, wifi_event_sta_connected_handler);
-    um_event_unsubscribe(WIFI_EVENT_STA_DISCONNECTED, wifi_event_disconnected_handler);
-    um_event_unsubscribe(WIFI_EVENT_AP_START, wifi_event_ap_start_handler);
-    um_event_unsubscribe(WIFI_EVENT_AP_STOP, wifi_event_ap_stop_handler);
-    um_event_unsubscribe(WIFI_EVENT_AP_STACONNECTED, wifi_event_ap_staconnected_handler);
-    um_event_unsubscribe(WIFI_EVENT_AP_STADISCONNECTED, wifi_event_ap_stadisconnected_handler);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_START, wifi_event_sta_start_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, wifi_event_sta_connected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, wifi_event_disconnected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_START, wifi_event_ap_start_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STOP, wifi_event_ap_stop_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STACONNECTED, wifi_event_ap_staconnected_handler, NULL);
+    esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_AP_STADISCONNECTED, wifi_event_ap_stadisconnected_handler, NULL);
 
     if (current_config.mode == UM_WIFI_MODE_STA || current_config.mode == UM_WIFI_MODE_APSTA)
     {
-        um_event_unsubscribe(IP_EVENT_STA_GOT_IP, ip_event_got_ip_handler);
+        esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_event_got_ip_handler, NULL);
     }
 
     if (current_config.mode == UM_WIFI_MODE_AP || current_config.mode == UM_WIFI_MODE_APSTA)
     {
-        um_event_unsubscribe(IP_EVENT_ASSIGNED_IP_TO_CLIENT, ip_event_ap_staipassigned_handler);
+        esp_event_handler_register(IP_EVENT, IP_EVENT_ASSIGNED_IP_TO_CLIENT, ip_event_ap_staipassigned_handler, NULL);
     }
 }
 
@@ -284,6 +287,7 @@ static void init_internal(um_wifi_config_t *config)
 
     is_initialized = true;
     ESP_LOGI(TAG, "WiFi initialized in mode: %d", current_config.mode);
+    vTaskDelay(pdMS_TO_TICKS(2000));
 }
 
 void um_wifi_init(um_wifi_config_t *config)
@@ -410,26 +414,130 @@ bool um_wifi_is_sta_connected(void)
 
 wifi_ap_record_t *um_wifi_scan(uint16_t *count)
 {
-    if (!is_initialized)
-        return NULL;
+    bool need_cleanup = false;
+    bool mode_restore_needed = false;
+    wifi_mode_t previous_mode = WIFI_MODE_NULL;
 
+    // Если WiFi не инициализирован - временно инициализируем в режиме STA
+    if (!is_initialized)
+    {
+        ESP_LOGI(TAG, "WiFi not initialized, temporary init for scanning...");
+
+        // Инициализация сетевого стека (если ещё не инициализирован)
+        esp_netif_init();
+
+        // Создаём временный netif для STA
+        sta_netif = esp_netif_create_default_wifi_sta();
+
+        wifi_init_config_t wifi_init_cfg = WIFI_INIT_CONFIG_DEFAULT();
+        esp_err_t err = esp_wifi_init(&wifi_init_cfg);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(TAG, "Failed to init WiFi for scan: %s", esp_err_to_name(err));
+            return NULL;
+        }
+
+        // Устанавливаем режим STA
+        ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+        ESP_ERROR_CHECK(esp_wifi_start());
+
+        need_cleanup = true;
+        is_initialized = true;
+
+        // Даём время на инициализацию
+        vTaskDelay(pdMS_TO_TICKS(500));
+    }
+    else
+    {
+        // Запоминаем текущий режим, чтобы восстановить после сканирования
+        esp_wifi_get_mode(&previous_mode);
+
+        // Если режим не STA и не APSTA - временно переключаемся в STA
+        if (previous_mode != WIFI_MODE_STA && previous_mode != WIFI_MODE_APSTA)
+        {
+            ESP_LOGI(TAG, "Temporarily switching from mode %d to STA for scanning...", previous_mode);
+            ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+            vTaskDelay(pdMS_TO_TICKS(200));
+            mode_restore_needed = true;
+        }
+    }
+
+    // Запуск сканирования
     wifi_scan_config_t scan_config = {
         .ssid = NULL,
         .bssid = NULL,
         .channel = 0,
         .show_hidden = true,
-    };
+        .scan_type = WIFI_SCAN_TYPE_ACTIVE,
+        .scan_time = {
+            .active = {
+                .min = 100,
+                .max = 300}}};
 
-    ESP_ERROR_CHECK(esp_wifi_scan_start(&scan_config, true));
+    esp_err_t scan_err = esp_wifi_scan_start(&scan_config, true);
+    if (scan_err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Scan start failed: %s", esp_err_to_name(scan_err));
+
+        // Восстанавливаем режим если нужно
+        if (mode_restore_needed)
+        {
+            esp_wifi_set_mode(previous_mode);
+        }
+
+        // Если мы временно инициализировали WiFi - чистим за собой
+        if (need_cleanup)
+        {
+            esp_wifi_stop();
+            esp_wifi_deinit();
+            if (sta_netif)
+            {
+                esp_netif_destroy(sta_netif);
+                sta_netif = NULL;
+            }
+            is_initialized = false;
+        }
+
+        return NULL;
+    }
+
+    // Получаем результаты
     ESP_ERROR_CHECK(esp_wifi_scan_get_ap_num(count));
 
-    if (*count == 0)
-        return NULL;
-
-    wifi_ap_record_t *records = malloc(sizeof(wifi_ap_record_t) * (*count));
-    if (records)
+    wifi_ap_record_t *records = NULL;
+    if (*count > 0)
     {
-        ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(count, records));
+        records = malloc(sizeof(wifi_ap_record_t) * (*count));
+        if (records)
+        {
+            ESP_ERROR_CHECK(esp_wifi_scan_get_ap_records(count, records));
+            ESP_LOGI(TAG, "Scan completed, found %d APs", *count);
+        }
+    }
+    else
+    {
+        ESP_LOGW(TAG, "No APs found");
+    }
+
+    // Восстанавливаем режим если временно переключали
+    if (mode_restore_needed)
+    {
+        ESP_LOGI(TAG, "Restoring WiFi mode to %d", previous_mode);
+        esp_wifi_set_mode(previous_mode);
+    }
+
+    // Если мы временно инициализировали WiFi - чистим за собой
+    if (need_cleanup)
+    {
+        ESP_LOGI(TAG, "Cleaning up temporary WiFi...");
+        esp_wifi_stop();
+        esp_wifi_deinit();
+        if (sta_netif)
+        {
+            esp_netif_destroy(sta_netif);
+            sta_netif = NULL;
+        }
+        is_initialized = false;
     }
 
     return records;

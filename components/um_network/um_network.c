@@ -21,26 +21,26 @@ um_wifi_config_t wifi_config;
 
 static void load_wifi_sta_config_from_nvs(um_wifi_config_t *config)
 {
-    char *hostname = NULL;
+    char *ssid = NULL;
     char *password = NULL;
     uint8_t ip_type = 0;
 
     // Получаем hostname из NVS (он же будет SSID)
-    um_nvs_get_hostname(&hostname);
+    um_nvs_get_wifi_sta_ssid(&ssid);
     um_nvs_get_wifi_sta_password(&password);
     um_nvs_get_wifi_type(&ip_type);
 
     // Используем hostname как SSID
-    if (hostname && strlen(hostname) > 0)
+    if (ssid && strlen(ssid) > 0)
     {
-        strncpy(config->sta.ssid, hostname, sizeof(config->sta.ssid) - 1);
+        strncpy(config->sta.ssid, ssid, sizeof(config->sta.ssid) - 1);
         config->sta.ssid[sizeof(config->sta.ssid) - 1] = '\0';
     }
     else
     {
         // Если hostname нет, используем дефолтный
-        ESP_LOGW(TAG, "No hostname in NVS, using default SSID");
-        strcpy(config->sta.ssid, "UMNI_Device");
+        ESP_LOGW(TAG, "No ssid in NVS, using default SSID");
+        strcpy(config->sta.ssid, "UMNI_Wifi");
     }
 
     // Копируем пароль
@@ -78,22 +78,22 @@ static void load_wifi_sta_config_from_nvs(um_wifi_config_t *config)
         config->ip_mode = UM_WIFI_IP_DHCP;
     }
 
-    free(hostname);
+    free(ssid);
     free(password);
 }
 
 static void load_wifi_ap_config_from_nvs(um_wifi_config_t *config)
 {
-    char *ssid = NULL;
+    char *hostname = NULL;
     char *password = NULL;
 
     // Читаем SSID и пароль для AP (если есть)
-    um_nvs_get_wifi_sta_ssid(&ssid); // Используем те же ключи для AP
+    um_nvs_get_hostname(&hostname); // Используем те же ключи для AP
     um_nvs_get_wifi_sta_password(&password);
 
-    if (ssid && strlen(ssid) > 0)
+    if (hostname && strlen(hostname) > 0)
     {
-        strncpy(config->ap.ssid, ssid, sizeof(config->ap.ssid) - 1);
+        strncpy(config->ap.ssid, hostname, sizeof(config->ap.ssid) - 1);
         strncpy(config->ap.password, password ? password : "", sizeof(config->ap.password) - 1);
     }
     else
@@ -109,7 +109,7 @@ static void load_wifi_ap_config_from_nvs(um_wifi_config_t *config)
     config->ap.max_connections = 4;
     config->ap.hidden = false;
 
-    free(ssid);
+    free(hostname);
     free(password);
 }
 
@@ -256,7 +256,7 @@ esp_err_t um_network_init(void)
         load_wifi_sta_config_from_nvs(&wifi_config);
 
         um_wifi_init(&wifi_config);
-        ESP_LOGI(TAG, "WiFi STA started, connecting to: %s", wifi_config.sta.ssid);
+        ESP_LOGI(TAG, "WiFi STA started, connecting to: %s with password %s", wifi_config.sta.ssid, wifi_config.sta.password);
 #endif
         break;
     }
