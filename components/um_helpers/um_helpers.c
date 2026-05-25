@@ -281,6 +281,7 @@ esp_err_t um_helpers_get_systeminfo(cJSON **data)
     cJSON *heap = cJSON_CreateObject();
 
     char *hostname = NULL;
+    char *title = NULL;
     if (um_nvs_get_hostname(&hostname) == ESP_OK && hostname)
     {
         cJSON_AddStringToObject(systeminfo, "hostname", hostname);
@@ -289,6 +290,16 @@ esp_err_t um_helpers_get_systeminfo(cJSON **data)
     else
     {
         cJSON_AddStringToObject(systeminfo, "hostname", "unknown");
+    }
+
+    if (um_nvs_get_title(&title) == ESP_OK && title)
+    {
+        cJSON_AddStringToObject(systeminfo, "title", title);
+        free(title);
+    }
+    else
+    {
+        cJSON_AddNullToObject(systeminfo, "title");
     }
 
     cJSON_AddStringToObject(systeminfo, "fw_ver", CONFIG_UMNI_FW_VERSION);

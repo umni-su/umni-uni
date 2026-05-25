@@ -610,6 +610,11 @@ esp_err_t um_nvs_get_hostname(char **hostname)
     return um_nvs_read_str(UM_NVS_KEY_HOSTNAME, hostname);
 }
 
+esp_err_t um_nvs_get_title(char **title)
+{
+    return um_nvs_read_str(UM_NVS_KEY_TITLE, title);
+}
+
 esp_err_t um_nvs_get_macname(char **macname)
 {
     return um_nvs_read_str(UM_NVS_KEY_MACNAME, macname);

@@ -284,6 +284,7 @@ extern "C"
     /* System Getters */
     bool um_nvs_get_installed(void);
     esp_err_t um_nvs_get_hostname(char **hostname);
+    esp_err_t um_nvs_get_title(char **title);
     esp_err_t um_nvs_get_macname(char **macname);
     esp_err_t um_nvs_get_username(char **username);
     esp_err_t um_nvs_get_password(char **password);
