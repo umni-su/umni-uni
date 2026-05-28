@@ -32,6 +32,7 @@
 #endif
 
 #if UM_FEATURE_ENABLED(RF433)
+#include "um_rf433.h"
 #include "um_rf433_config.h"
 #endif
 
@@ -393,7 +394,11 @@ esp_err_t um_webserver_base_post_handler(
 
 static esp_err_t get_systeminfo(httpd_req_t *req, cJSON **data)
 {
-    return um_helpers_get_systeminfo(data);
+    um_helpers_get_systeminfo(data);
+    bool config_state = false;
+    um_dio_get_config_state(&config_state);
+    cJSON_AddBoolToObject(*data, "config", config_state == false);
+    return ESP_OK;
 }
 
 static void um_restart(void *arg)
@@ -473,7 +478,7 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
     else if (strcmp(section, "rf433") == 0)
     {
 #if UM_FEATURE_ENABLED(RF433)
-        config_str = um_rf433_config_read();
+        config_str = um_rf433_config_read_with_state();
 #else
         return ESP_ERR_NOT_SUPPORTED;
 #endif
@@ -696,6 +701,22 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
     }
 
     *output = result;
+    return ESP_ERR_INVALID_ARG;
+}
+
+static esp_err_t um_webserver_get_rf433_scan(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+    cJSON *mode = cJSON_GetObjectItem(input, "mode");
+    if (cJSON_IsBool(mode))
+    {
+        if (cJSON_IsTrue(mode))
+        {
+#if UM_FEATURE_ENABLED(RF433)
+            um_rf433_activale_search();
+#endif
+        }
+        return ESP_OK;
+    }
     return ESP_ERR_INVALID_ARG;
 }
 
@@ -977,6 +998,39 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
             um_ot_set_otc_en(cJSON_IsTrue(ot_otc_en));
             // um_nvs_set_ot_outdoor_temp_comp(cJSON_IsTrue(ot_otc_en));
         }
+#endif
+    }
+    else if (strcmp(setting->valuestring, "rf433") == 0)
+    {
+#if (UM_FEATURE_ENABLED(RF433))
+        cJSON *rf_mode = cJSON_GetObjectItem(values, "mode");
+        cJSON *rf_serial = cJSON_GetObjectItem(values, "serial");
+        cJSON *rf_label = cJSON_GetObjectItem(values, "label");
+        cJSON *rf_alarm = cJSON_GetObjectItem(values, "alarm");
+        cJSON *rf_type = cJSON_GetObjectItem(values, "type");
+
+        bool rf_delete_mode = cJSON_IsString(rf_mode) && strcmp(rf_mode->valuestring, "delete");
+        bool rf_alarm_var = cJSON_IsBool(rf_alarm) && cJSON_IsTrue(rf_alarm);
+
+        if (rf_delete_mode)
+        {
+            if (cJSON_IsNumber(rf_serial))
+            {
+                um_rf433_config_remove_device(rf_serial->valueint);
+            }
+        }
+        else
+        {
+            if (cJSON_IsNumber(rf_serial) && cJSON_IsString(rf_label) && cJSON_IsBool(rf_alarm) && cJSON_IsNumber(rf_type))
+            {
+                um_rf433_config_add_device(
+                    rf_serial->valueint,
+                    rf_type->valueint,
+                    rf_label->valuestring,
+                    rf_alarm_var);
+            }
+        }
+
 #endif
     }
     return ESP_OK;
@@ -1669,6 +1723,7 @@ esp_err_t um_webserver_start(void)
     um_webserver_register_post("/api/configuration", um_webserver_configuration_handler);
     um_webserver_register_get("/api/configuration", um_webserver_get_configuration);
     um_webserver_register_get("/api/wifi/scan", um_webserver_get_wifi_networks);
+    um_webserver_register_post("/api/rf/scan", um_webserver_get_rf433_scan);
 
     um_sse_server_init(server, "/sse/events");
 

@@ -11,6 +11,16 @@ extern "C"
 {
 #endif
 
+    typedef enum
+    {
+        UM_RF433_TYPE_MOTION_SENSOR = 1,
+        UM_RF433_TYPE_DOOR_SENSOR = 2,
+        UM_RF433_TYPE_WATER_SENSOR = 3,
+        UM_RF433_TYPE_REMOTE_CONTROLLER = 4,
+        UM_RF433_TYPE_SMOKE_SENSOR = 5,
+        UM_RF433_TYPE_OTHER = 20,
+    } um_rf433_type_t;
+
 #define UM_RF433_MAX_SENSORS 32
 #define UM_RF433_CONFIG_PATH "/spiffs/rf433.json"
 
@@ -52,6 +62,8 @@ extern "C"
      * @return char* JSON строка или NULL
      */
     char *um_rf433_config_read(void);
+
+    char *um_rf433_config_read_with_state(void);
 
     /**
      * @brief Получить runtime данные датчика по серийному номеру

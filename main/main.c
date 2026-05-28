@@ -199,6 +199,39 @@ void um_main_event_handler(void *arg, esp_event_base_t base, int32_t id, void *d
         }
         break;
     }
+    case UM_EVENT_RF433_SCAN:
+        um_event_sensor_payload_t *payload = (um_event_sensor_payload_t *)data;
+        if (payload)
+        {
+            ESP_LOGW(TAG, "RF433 scan device new event: serial - %s, value - %f", payload->serial, payload->value);
+
+            cJSON *json_data = cJSON_CreateObject();
+
+            const char *cap_str = um_capabilities_get_name(payload->capability);
+
+            cJSON_AddNumberToObject(json_data, "timestamp", um_helpers_get_real_timestamp_ms());
+            cJSON_AddStringToObject(json_data, "capability", payload->category);
+
+            if (strlen(payload->serial) == 0)
+            {
+                cJSON_AddNullToObject(json_data, "serial");
+                cJSON_AddStringToObject(json_data, "identifier", cap_str);
+            }
+            else
+            {
+                cJSON_AddStringToObject(json_data, "serial", payload->serial);
+                cJSON_AddStringToObject(json_data, "identifier", payload->serial);
+            }
+            cJSON_AddNumberToObject(json_data, "value", payload->value);
+
+            char *data = cJSON_PrintUnformatted(json_data);
+
+            if (data)
+            {
+                um_sse_publish_event("rf433_scan", data);
+            }
+            free(data);
+        }
     default:
         break;
     }
@@ -452,6 +485,11 @@ void app_main(void)
     // Создаем отдельную задачу для обработки очереди (СТЕК 8192 вместо 4096)
     xTaskCreate(publisher_task, "sensor_pub", 8192, NULL, 2, &publisher_task_handle);
 
+// Загружаем информацию о перемычке (влияет на работу сети)
+#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
+    um_dio_init();
+#endif
+
     um_network_init();
 
 #if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2) || UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
@@ -489,9 +527,6 @@ void app_main(void)
 #endif
 #if UM_FEATURE_ENABLED(ALARM)
     um_alarm_init(UM_ALARM_EDGE_BOTH, false, false, 400);
-#endif
-#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
-    um_dio_init();
 #endif
 #if UM_FEATURE_ENABLED(RF433)
     um_rf_433_init();

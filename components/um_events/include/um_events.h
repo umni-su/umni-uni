@@ -45,6 +45,7 @@ extern "C"
         UMNI_EVENT_OUTPUT_CHANGED,
         UMNI_EVENT_INPUT_CHANGED,
         UMNI_EVENT_OPENCOLLECTOR_CHANGED,
+        UM_EVENT_RF433_SCAN
 
     } umn_event_id_t;
 

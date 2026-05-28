@@ -7,6 +7,8 @@
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_err.h"
+#include "um_events.h"
+#include "base_config.h"
 
 static const char *TAG = "rf433";
 
@@ -35,6 +37,24 @@ void um_rf433_search_handle(void *arg)
     search = false;
 
     vTaskDelete(NULL);
+}
+
+um_event_sensor_payload_t create_rf433_payload(uint32_t serial, uint8_t state)
+{
+    // static гарантирует, что память не очистится при выходе из функции.
+    // 9 байт достаточно для 8 символов HEX (32 бита) + нуль-терминатор.
+    static char serial_str[9];
+
+    // Безопасно форматируем uint32_t в HEX-строку
+    snprintf(serial_str, sizeof(serial_str), "%06lX", (unsigned long)serial);
+
+    um_event_sensor_payload_t payload = {
+        .capability = UM_CAP_RF433,
+        .category = UM_CATEGORY_RF433,
+        .serial = serial_str,
+        .value = state};
+
+    return payload;
 }
 
 void um_rf433_receiver_task(void *pvParameter)
@@ -78,7 +98,7 @@ void um_rf433_receiver_task(void *pvParameter)
 
             // Логика определения срабатывания (пример для датчика движения/двери)
             // triggered = true если пришло изменение состояния и прошло достаточно времени
-            if (dev->state != state && time_diff_ms > 200)
+            if (time_diff_ms > 200)
             {
                 dev->triggered = true;
                 dev->last_processed_time = current_time;
@@ -94,15 +114,26 @@ void um_rf433_receiver_task(void *pvParameter)
             dev->state = state;
 
             // Если это событие срабатывания - отправляем уведомление
+
             if (dev->triggered && dev->serial > 0)
             {
-                ESP_LOGW(TAG, "=== TRIGGERED ===");
-                ESP_LOGW(TAG, "Serial: %06lX, Alarm: %s",
-                         dev->serial, dev->alarm ? "YES" : "no");
                 ESP_LOGI(TAG, "State: %d, Channels: A:%d B:%d C:%d D:%d",
                          state, chan1, chan2, chan3, chan4);
                 ESP_LOGI(TAG, "Time diff: %.1f ms, Packet #%d",
                          time_diff_ms, dev->packet_count);
+
+                static char serial_str[9];
+                snprintf(serial_str, sizeof(serial_str), "%06lX", (unsigned long)dev->serial);
+
+                um_event_sensor_payload_t payload = {
+                    .category = UM_CATEGORY_RF433,
+                    .capability = (uint8_t)UM_CAP_RF433,
+                    .serial = serial_str,
+                    .value = state};
+                um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                                 &payload,
+                                 sizeof(um_event_sensor_payload_t),
+                                 portMAX_DELAY);
 
                 // Отправка события в систему
                 /*
@@ -154,12 +185,18 @@ void um_rf433_receiver_task(void *pvParameter)
             {
                 // Обновляем существующую запись
                 rf_scanned_devices[existing_search_index] = search_dev;
+                um_event_sensor_payload_t payload = create_rf433_payload(serial, state);
+                um_event_publish(UM_EVENT_RF433_SCAN, &payload, sizeof(um_event_sensor_payload_t), portMAX_DELAY);
             }
             else if (search_array_length < UM_RF433_MAX_SEARCH_SENSORS)
             {
                 // Добавляем новую
                 rf_scanned_devices[search_array_length] = search_dev;
                 ESP_LOGI(TAG, "[SEARCH] New device found: %06lX (State: %d)", serial, state);
+
+                um_event_sensor_payload_t payload = create_rf433_payload(serial, state);
+
+                um_event_publish(UM_EVENT_RF433_SCAN, &payload, sizeof(um_event_sensor_payload_t), portMAX_DELAY);
             }
             else
             {
@@ -225,6 +262,7 @@ void um_rf_433_init()
         ESP_LOGI(TAG, "Load config: %s", config);
     }
     free(config);
+    um_rf433_config_load();
     esp_rf433_initialize(CONFIG_UM_CFG_RF433_DATA_GPIO, &um_rf433_receiver_task);
 }
 

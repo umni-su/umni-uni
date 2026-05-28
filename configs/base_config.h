@@ -35,6 +35,7 @@
 #define UM_CATEGORY_NTC "ntc"
 #define UM_CATEGORY_INPUTS "inputs"
 #define UM_CATEGORY_OUTPUTS "outputs"
+#define UM_CATEGORY_RF433 "rf433"
 #define UM_CATEGORY_ONEWIRE "onewire"
 #define UM_CATEGORY_OPENTHERM "ot"
 #define UM_CATEGORY_OPENCOLLECTORS "oc"
