@@ -1033,6 +1033,41 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
 
 #endif
     }
+    else if (strcmp(setting->valuestring, "onewire") == 0)
+    {
+#if UM_FEATURE_ENABLED(ONEWIRE)
+        const cJSON *ow_serial = cJSON_GetObjectItem(values, "serial");
+        if (cJSON_IsString(ow_serial))
+        {
+            const um_onewire_sensor_config_t *ow_config_const = um_onewire_config_get(ow_serial->valuestring);
+            if (ow_config_const != NULL)
+            {
+                um_onewire_sensor_config_t ow_config = *ow_config_const;
+
+                cJSON *ow_active = cJSON_GetObjectItem(values, "active");
+
+                bool ow_active_val = cJSON_IsBool(ow_active) && cJSON_IsTrue(ow_active);
+                ow_config.active = ow_active_val;
+
+                cJSON *ow_label = cJSON_GetObjectItem(values, "label");
+                if (cJSON_IsString(ow_label) && strlen(ow_label->valuestring) > 0)
+                {
+                    strncpy(ow_config.label, ow_label->valuestring, sizeof(ow_config.label) - 1);
+                    // ow_config.label[sizeof(ow_config.label) - 1] = '\0';
+                }
+
+                cJSON *ow_calibration = cJSON_GetObjectItem(values, "calibration");
+                if (cJSON_IsNumber(ow_calibration))
+                {
+                    ow_config.calibration = ow_calibration->valuedouble;
+                }
+
+                um_onewire_config_update(ow_serial->valuestring, &ow_config);
+                um_onewire_config_apply(); // commit
+            }
+        }
+#endif
+    }
     return ESP_OK;
 }
 

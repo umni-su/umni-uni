@@ -1,3 +1,4 @@
+#include <math.h>
 #include "um_onewire_config.h"
 #include "um_storage.h"
 #include <string.h>
@@ -84,7 +85,7 @@ esp_err_t um_onewire_config_load()
                     config->active = (active && cJSON_IsBool(active)) ? cJSON_IsTrue(active) : true;
 
                     cJSON *calibration = cJSON_GetObjectItem(sensor_item, "calibration");
-                    config->calibration = (calibration && cJSON_IsNumber(calibration)) ? (float)calibration->valuedouble : 0.0f;
+                    config->calibration = (calibration && cJSON_IsNumber(calibration)) ? calibration->valuedouble : 0.0f;
 
                     ESP_LOGI(TAG, "Loaded config for %s: '%s' (active: %s)",
                              config->serial, config->label, config->active ? "yes" : "no");
@@ -123,10 +124,8 @@ esp_err_t um_onewire_config_save()
 
         cJSON_AddBoolToObject(sensor, "active", config->active);
 
-        if (config->calibration != 0.0f)
-        {
-            cJSON_AddNumberToObject(sensor, "calibration", config->calibration);
-        }
+        float rounded_calibration = roundf(config->calibration * 10.0f) / 10.0f;
+        cJSON_AddNumberToObject(sensor, "calibration", rounded_calibration);
 
         cJSON_AddItemToArray(sensors_array, sensor);
     }
@@ -172,7 +171,7 @@ void um_onewire_config_apply(void)
 
             // Можно добавить логирование изменений
             bool current_active;
-            float current_calib;
+            double current_calib;
 
             um_onewire_get_sensor_active(sensor->address, &current_active);
             um_onewire_get_sensor_calibration(sensor->address, &current_calib);
@@ -228,7 +227,9 @@ esp_err_t um_onewire_config_update(const char *serial, const um_onewire_sensor_c
         // Обновляем существующую конфигурацию
         *existing_config = *config;
         strncpy(existing_config->serial, serial, sizeof(existing_config->serial) - 1);
-        ESP_LOGI(TAG, "Updated config for %s", serial);
+        existing_config->active = config->active;
+        existing_config->calibration = config->calibration;
+        ESP_LOGI(TAG, "Updated config for %s, act: %d, cal: %0.1f", serial, existing_config->active, existing_config->calibration);
     }
     else
     {

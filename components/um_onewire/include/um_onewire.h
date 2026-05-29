@@ -98,7 +98,7 @@ extern "C"
      * @param calibration Калибровочное смещение (°C)
      * @return esp_err_t Результат операции
      */
-    esp_err_t um_onewire_set_sensor_calibration(uint64_t address, float calibration);
+    esp_err_t um_onewire_set_sensor_calibration(uint64_t address, double calibration);
 
     /**
      * @brief Возвращает калибровочное смещение датчика
@@ -107,7 +107,7 @@ extern "C"
      * @param calibration Указатель для сохранения калибровки
      * @return esp_err_t Результат операции
      */
-    esp_err_t um_onewire_get_sensor_calibration(uint64_t address, float *calibration);
+    esp_err_t um_onewire_get_sensor_calibration(uint64_t address, double *calibration);
 
     /**
      * @brief Возвращает активность датчика

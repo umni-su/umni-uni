@@ -12,11 +12,11 @@ extern "C"
     // Структура конфигурации одного датчика
     typedef struct
     {
-        char serial[17];   // Серийный номер
-        char label[32];    // Человеко-читаемое имя
-        char location[32]; // Местоположение
-        bool active;       // Активен ли датчик
-        float calibration; // Калибровочное смещение
+        char serial[17];    // Серийный номер
+        char label[32];     // Человеко-читаемое имя
+        char location[32];  // Местоположение
+        bool active;        // Активен ли датчик
+        double calibration; // Калибровочное смещение
     } um_onewire_sensor_config_t;
 
     /**

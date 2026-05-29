@@ -245,7 +245,7 @@ esp_err_t um_onewire_set_sensor_active(uint64_t address, bool active)
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t um_onewire_set_sensor_calibration(uint64_t address, float calibration)
+esp_err_t um_onewire_set_sensor_calibration(uint64_t address, double calibration)
 {
     if (!onewire_state.initialized)
     {
@@ -273,7 +273,7 @@ esp_err_t um_onewire_set_sensor_calibration(uint64_t address, float calibration)
     return ESP_ERR_NOT_FOUND;
 }
 
-esp_err_t um_onewire_get_sensor_calibration(uint64_t address, float *calibration)
+esp_err_t um_onewire_get_sensor_calibration(uint64_t address, double *calibration)
 {
     if (!onewire_state.initialized || calibration == NULL)
     {
