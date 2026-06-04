@@ -319,6 +319,12 @@ dependencies:
       path: components\um_adc
       type: local
     version: 1.0.0
+  um_automations:
+    dependencies: []
+    source:
+      path: components\um_automations
+      type: local
+    version: 1.0.0
   um_buzzer:
     dependencies: []
     source:
@@ -440,6 +446,7 @@ direct_dependencies:
 - sazanof/opentherm
 - sazanof/rf433_receiver
 - um_adc
+- um_automations
 - um_buzzer
 - um_capabilities
 - um_dio
@@ -458,6 +465,6 @@ direct_dependencies:
 - um_storage
 - um_store
 - um_wifi
-manifest_hash: 61ceb0ac26f29950089e6acc1c41b9fea5d912dd500fea9964cd9157a924a567
+manifest_hash: 7a8e6aa2386288e22eece80af0ce7e3f69f0407abefdb3152c0a9bf0f10048f0
 target: esp32
 version: 3.0.0

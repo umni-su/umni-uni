@@ -6,6 +6,12 @@ menu "UMNI Configuration"
         default "1.0.0"
         help
             Firmware version string
+    
+    config UM_FEATURE_AUTOMATIONS
+        bool "Enable Automations"
+        default n
+        help
+            Enable Automations
 
     # ============================================
     # Network Interfaces

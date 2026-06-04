@@ -82,6 +82,8 @@ esp_err_t um_ot_set_boiler_status(
     bool enable_outside_temperature_compensation,
     bool enable_central_heating2);
 
+void um_ot_update_state_from_nvs();
+
 void um_ot_set_ch_setpoint(uint8_t temp);
 
 void um_ot_set_dhw_setpoint(uint8_t temp);

@@ -1,4 +1,5 @@
 #include <string.h>
+#include <math.h>
 #include <sys/param.h>
 #include "esp_log.h"
 
@@ -9,6 +10,7 @@
 #include "um_webserver.h"
 #include "um_capabilities.h"
 #include "um_sse_server.h"
+#include "um_automations.h"
 
 #if UM_FEATURE_ENABLED(WIFI)
 #include "um_wifi.h"
@@ -270,6 +272,49 @@ esp_err_t um_webserver_register_post(const char *uri,
     httpd_uri_t uri_struct = {
         .uri = uri,
         .method = HTTP_POST,
+        .handler = post_wrapper,
+        .user_ctx = ctx,
+    };
+
+    return httpd_register_uri_handler(server, &uri_struct);
+}
+
+esp_err_t um_webserver_register_put(const char *uri,
+                                    esp_err_t (*process_func)(httpd_req_t *, cJSON *, cJSON **))
+{
+    if (!server || !uri || !process_func)
+        return ESP_ERR_INVALID_ARG;
+
+    post_ctx_t *ctx = malloc(sizeof(post_ctx_t));
+    if (!ctx)
+        return ESP_ERR_NO_MEM;
+    ctx->process_data = process_func;
+
+    httpd_uri_t uri_struct = {
+        .uri = uri,
+        .method = HTTP_PUT,
+        .handler = post_wrapper,
+        .user_ctx = ctx,
+    };
+
+    return httpd_register_uri_handler(server, &uri_struct);
+}
+
+// Вспомогательная функция для регистрации DELETE
+esp_err_t um_webserver_register_delete(const char *uri,
+                                       esp_err_t (*process_func)(httpd_req_t *, cJSON *, cJSON **))
+{
+    if (!server || !uri || !process_func)
+        return ESP_ERR_INVALID_ARG;
+
+    post_ctx_t *ctx = malloc(sizeof(post_ctx_t));
+    if (!ctx)
+        return ESP_ERR_NO_MEM;
+    ctx->process_data = process_func;
+
+    httpd_uri_t uri_struct = {
+        .uri = uri,
+        .method = HTTP_DELETE,
         .handler = post_wrapper,
         .user_ctx = ctx,
     };
@@ -721,6 +766,226 @@ static esp_err_t um_webserver_get_rf433_scan(httpd_req_t *req, cJSON *input, cJS
 }
 
 /**
+ * @brief GET /api/automations - Получить все правила автоматизаций
+ */
+static esp_err_t um_webserver_get_automations(httpd_req_t *req, cJSON **output)
+{
+#if UM_FEATURE_ENABLED(AUTOMATIONS)
+    char *rules_json = um_automations_get_config_json();
+    if (rules_json == NULL)
+    {
+        *output = cJSON_CreateArray();
+        return ESP_OK;
+    }
+
+    cJSON *rules = cJSON_Parse(rules_json);
+    free(rules_json);
+
+    if (rules == NULL)
+    {
+        *output = cJSON_CreateArray();
+        return ESP_OK;
+    }
+
+    *output = rules;
+    return ESP_OK;
+#else
+    *output = cJSON_CreateObject();
+    cJSON_AddStringToObject(*output, "error", "Automations feature disabled");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+/**
+ * @brief POST /api/automations - Добавить новое правило
+ *
+ * JSON формат:
+ * {
+ *   "if": {
+ *     "capability": "ntc1",
+ *     "op": ">",
+ *     "value": 30.0
+ *   },
+ *   "then": [
+ *     { "capability": "out1", "action": 1 }
+ *   ],
+ *   "else": [
+ *     { "capability": "out1", "action": 0 }
+ *   ]
+ * }
+ */
+static esp_err_t um_webserver_post_automations(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+#if UM_FEATURE_ENABLED(AUTOMATIONS)
+    // Проверяем наличие обязательных полей
+    cJSON *if_obj = cJSON_GetObjectItem(input, "if");
+    cJSON *then_arr = cJSON_GetObjectItem(input, "then");
+
+    if (!if_obj || !then_arr)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Проверяем структуру "if"
+    cJSON *cap = cJSON_GetObjectItem(if_obj, "capability");
+    cJSON *op = cJSON_GetObjectItem(if_obj, "op");
+    cJSON *val = cJSON_GetObjectItem(if_obj, "value");
+
+    if (!cap || !cJSON_IsString(cap) ||
+        !op || !cJSON_IsString(op) ||
+        !val || !cJSON_IsNumber(val))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Проверяем "then" массив
+    if (!cJSON_IsArray(then_arr) || cJSON_GetArraySize(then_arr) == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = um_automations_add_rule(input);
+
+    if (err == ESP_OK)
+    {
+        *output = cJSON_CreateObject();
+        cJSON_AddStringToObject(*output, "message", "Rule added successfully");
+        return ESP_OK;
+    }
+    else if (err == ESP_ERR_NO_MEM)
+    {
+        return ESP_ERR_NO_MEM;
+    }
+    else
+    {
+        return ESP_FAIL;
+    }
+#else
+    *output = cJSON_CreateObject();
+    cJSON_AddStringToObject(*output, "error", "Automations feature disabled");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+/**
+ * @brief PUT /api/automations/{id} - Обновить правило по ID
+ *
+ * ID извлекается из URI, данные из JSON тела запроса
+ */
+static esp_err_t um_webserver_put_automations(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+#if UM_FEATURE_ENABLED(AUTOMATIONS)
+    // Извлекаем ID из URI
+    const char *uri = req->uri;
+    uint32_t rule_id = 0;
+
+    // Ищем последний сегмент URI
+    const char *last_slash = strrchr(uri, '/');
+    if (last_slash && strlen(last_slash + 1) > 0)
+    {
+        rule_id = atoi(last_slash + 1);
+    }
+
+    if (rule_id == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Проверяем наличие обязательных полей
+    cJSON *if_obj = cJSON_GetObjectItem(input, "if");
+    cJSON *then_arr = cJSON_GetObjectItem(input, "then");
+
+    if (!if_obj || !then_arr)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Проверяем структуру "if"
+    cJSON *cap = cJSON_GetObjectItem(if_obj, "capability");
+    cJSON *op = cJSON_GetObjectItem(if_obj, "op");
+    cJSON *val = cJSON_GetObjectItem(if_obj, "value");
+
+    if (!cap || !cJSON_IsString(cap) ||
+        !op || !cJSON_IsString(op) ||
+        !val || !cJSON_IsNumber(val))
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Проверяем "then" массив
+    if (!cJSON_IsArray(then_arr) || cJSON_GetArraySize(then_arr) == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = um_automations_update_rule(rule_id, input);
+
+    if (err == ESP_OK)
+    {
+        *output = cJSON_CreateObject();
+        cJSON_AddStringToObject(*output, "message", "Rule updated successfully");
+        return ESP_OK;
+    }
+    else if (err == ESP_ERR_NOT_FOUND)
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
+    else
+    {
+        return ESP_FAIL;
+    }
+#else
+    *output = cJSON_CreateObject();
+    cJSON_AddStringToObject(*output, "error", "Automations feature disabled");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+/**
+ * @brief DELETE /api/automations/{id} - Удалить правило по ID
+ */
+static esp_err_t um_webserver_delete_automations(httpd_req_t *req, cJSON *input, cJSON **output)
+{
+#if UM_FEATURE_ENABLED(AUTOMATIONS)
+    // Извлекаем ID из URI
+    const char *uri = req->uri;
+    uint32_t rule_id = 0;
+
+    const char *last_slash = strrchr(uri, '/');
+    if (last_slash && strlen(last_slash + 1) > 0)
+    {
+        rule_id = atoi(last_slash + 1);
+    }
+
+    if (rule_id == 0)
+    {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    esp_err_t err = um_automations_remove_rule(rule_id);
+
+    if (err == ESP_OK)
+    {
+        *output = cJSON_CreateObject();
+        cJSON_AddStringToObject(*output, "message", "Rule deleted successfully");
+        return ESP_OK;
+    }
+    else if (err == ESP_ERR_NOT_FOUND)
+    {
+        return ESP_ERR_NOT_FOUND;
+    }
+    else
+    {
+        return ESP_FAIL;
+    }
+#else
+    *output = cJSON_CreateObject();
+    cJSON_AddStringToObject(*output, "error", "Automations feature disabled");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+/**
  * @brief Обработчик для входа (POST)
  */
 static esp_err_t um_webserver_login_handler(httpd_req_t *req, cJSON *input, cJSON **output)
@@ -877,6 +1142,7 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
 #if UM_FEATURE_ENABLED(NTC1) || UM_FEATURE_ENABLED(NTC2)
         cJSON *ntc_channel = cJSON_GetObjectItem(values, "channel");
         cJSON *ntc_active = cJSON_GetObjectItem(values, "active");
+
         cJSON *ntc_calibration_offset = cJSON_GetObjectItem(values, "offset");
         cJSON *ntc_label = cJSON_GetObjectItem(values, "label");
         if (
@@ -890,10 +1156,13 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
             ntc_config.channel_id = ntc_channel->valueint;
             strlcpy(ntc_config.label, ntc_label->valuestring, sizeof(ntc_config.label));
             ntc_config.active = cJSON_IsTrue(ntc_active);
-            ntc_config.calibration_offset = ntc_calibration_offset->valuedouble;
+
+            double rounded_calibration = roundf(ntc_calibration_offset->valuedouble * 10.0f) / 10.0f;
+            ntc_config.calibration = rounded_calibration;
             um_ntc_config_update(
                 ntc_channel->valueint,
                 &ntc_config);
+            um_ntc_config_apply();
             return um_ntc_config_save();
         }
         else
@@ -998,6 +1267,7 @@ static esp_err_t um_webserver_save_settings_handler(httpd_req_t *req, cJSON *inp
             um_ot_set_otc_en(cJSON_IsTrue(ot_otc_en));
             // um_nvs_set_ot_outdoor_temp_comp(cJSON_IsTrue(ot_otc_en));
         }
+
 #endif
     }
     else if (strcmp(setting->valuestring, "rf433") == 0)
@@ -1759,6 +2029,11 @@ esp_err_t um_webserver_start(void)
     um_webserver_register_get("/api/configuration", um_webserver_get_configuration);
     um_webserver_register_get("/api/wifi/scan", um_webserver_get_wifi_networks);
     um_webserver_register_post("/api/rf/scan", um_webserver_get_rf433_scan);
+
+    um_webserver_register_get("/api/automations", um_webserver_get_automations);
+    um_webserver_register_post("/api/automations", um_webserver_post_automations);
+    um_webserver_register_put("/api/automations/*", um_webserver_put_automations);
+    um_webserver_register_delete("/api/automations/*", um_webserver_delete_automations);
 
     um_sse_server_init(server, "/sse/events");
 

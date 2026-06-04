@@ -124,7 +124,7 @@ esp_err_t um_onewire_config_save()
 
         cJSON_AddBoolToObject(sensor, "active", config->active);
 
-        float rounded_calibration = roundf(config->calibration * 10.0f) / 10.0f;
+        double rounded_calibration = roundf(config->calibration * 10.0f) / 10.0f;
         cJSON_AddNumberToObject(sensor, "calibration", rounded_calibration);
 
         cJSON_AddItemToArray(sensors_array, sensor);

@@ -1,4 +1,4 @@
 idf_component_register(
-    SRCS "um_ot.c" "um_opentherm.c"
+    SRCS "um_automations.c"
     INCLUDE_DIRS "include"
 )

@@ -1,0 +1,28 @@
+dependencies:
+  idf:
+    version: '>=6.0'
+  espressif/cjson:
+    version: "*"
+    require: public
+  um_events:
+    path: ../um_events
+    version: "*"
+  um_storage:
+    path: ../um_storage
+    version: "*"
+  um_capabilities:
+    path: ../um_capabilities
+    version: "*"
+  um_dio:
+    path: ../um_dio
+    version: "*"
+  um_opentherm:
+    path: ../um_opentherm
+    version: "*"
+  um_opencollectors:
+    path: ../um_opencollectors
+    version: "*"
+  
+description: UMNI automations component
+license: MIT
+version: 1.0.0

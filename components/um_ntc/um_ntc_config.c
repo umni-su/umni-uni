@@ -1,4 +1,5 @@
 #include <string.h>
+#include <math.h>
 #include "esp_log.h"
 #include "um_ntc_config.h"
 #include "um_storage.h"
@@ -112,12 +113,12 @@ esp_err_t um_ntc_config_load(void)
                 cJSON *active = cJSON_GetObjectItem(channel_item, "active");
                 config->active = (active && cJSON_IsBool(active)) ? cJSON_IsTrue(active) : true;
 
-                cJSON *calibration = cJSON_GetObjectItem(channel_item, "calibration_offset");
-                config->calibration_offset = (calibration && cJSON_IsNumber(calibration)) ? (float)calibration->valuedouble : 0.0f;
+                cJSON *calibration = cJSON_GetObjectItem(channel_item, "offset");
+                config->calibration = (calibration && cJSON_IsNumber(calibration)) ? calibration->valuedouble : 0.0f;
 
                 ESP_LOGI(TAG, "Loaded config for NTC channel %d: '%s' (active: %s, cal: %.2f)",
                          channel_id, config->label, config->active ? "yes" : "no",
-                         config->calibration_offset);
+                         config->calibration);
 
                 s_config_count++;
             }
@@ -145,10 +146,8 @@ esp_err_t um_ntc_config_save(void)
         cJSON_AddStringToObject(channel, "label", config->label);
         cJSON_AddBoolToObject(channel, "active", config->active);
 
-        if (config->calibration_offset != 0.0f)
-        {
-            cJSON_AddNumberToObject(channel, "calibration_offset", config->calibration_offset);
-        }
+        double rounded = round(config->calibration * 10.0) / 10.0;
+        cJSON_AddNumberToObject(channel, "offset", rounded);
 
         cJSON_AddItemToArray(channels_array, channel);
     }
@@ -228,7 +227,9 @@ esp_err_t um_ntc_config_update(uint8_t channel_id, const um_ntc_channel_config_t
         // Update existing configuration
         *existing_config = *config;
         existing_config->channel_id = channel_id; // Ensure ID is correct
-        ESP_LOGI(TAG, "Updated config for NTC channel %d", channel_id);
+        existing_config->calibration = config->calibration;
+        strncpy(existing_config->label, config->label, sizeof(existing_config->label) - 1);
+        ESP_LOGI(TAG, "Updated config for NTC channel %d, act: %d, cal: %0.1f", channel_id, existing_config->active, existing_config->calibration);
     }
     else
     {
@@ -263,7 +264,7 @@ esp_err_t um_ntc_config_create_default(void)
     um_ntc_channel_config_t config1 = {
         .channel_id = 0,
         .active = true,
-        .calibration_offset = 0.0f};
+        .calibration = 0.0f};
     snprintf(config1.label, sizeof(config1.label), "NTC Sensor 1");
     s_channel_configs[s_config_count++] = config1;
     ESP_LOGI(TAG, "Created default config for NTC channel 1");
@@ -273,7 +274,7 @@ esp_err_t um_ntc_config_create_default(void)
     um_ntc_channel_config_t config2 = {
         .channel_id = 1,
         .active = true,
-        .calibration_offset = 0.0f};
+        .calibration = 0.0f};
     snprintf(config2.label, sizeof(config2.label), "NTC Sensor 2");
     s_channel_configs[s_config_count++] = config2;
     ESP_LOGI(TAG, "Created default config for NTC channel 2");

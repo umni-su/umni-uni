@@ -11,6 +11,7 @@
 #include "um_sse_server.h"
 #include "um_sockets.h"
 #include "um_network.h"
+#include "um_automations.h"
 
 #if UM_FEATURE_ENABLED(WEBHOOKS)
 #include "um_webhooks.h"
@@ -35,6 +36,7 @@
 
 #if UM_FEATURE_ENABLED(OPENTHERM)
 #include "um_opentherm.h"
+#include "um_ot.h"
 #endif
 
 #if UM_FEATURE_ENABLED(WEBSERVER)
@@ -471,6 +473,8 @@ void app_main(void)
     um_storage_init("/spiffs", NULL, 5, true);
     um_nvs_get_hostname(&hostname);
 
+    um_automations_init();
+
     ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ANY, um_main_event_handler, NULL));
 
     ESP_ERROR_CHECK(um_event_subscribe(UMNI_EVENT_ETH_CONNECTED, um_main_connected_handler, NULL));
@@ -558,5 +562,28 @@ void app_main(void)
 
 #if UM_FEATURE_ENABLED(OPENTHERM)
     um_ot_init();
+    //   ESP_LOGI(TAG, "Starting OpenTherm");
+
+    // um_otrm_t *ot = um_otrm_create(26, 25, false);
+    // um_otrm_begin(ot, NULL, NULL);
+
+    // while (1)
+    // {
+    //     float ch_temp = um_otrm_get_boiler_temperature(ot);
+    //     float dhw_temp = um_otrm_get_dhw_temperature(ot);
+
+    //     if (um_otrm_get_last_response_status(ot) == UM_OTRM_RESPONSE_SUCCESS)
+    //     {
+    //         ESP_LOGI(TAG, "CH Temperature: %.2f °C", ch_temp);
+    //         ESP_LOGI(TAG, "DHW Temperature: %.2f °C", dh_temp);
+
+    //     }
+    //     else
+    //     {
+    //         ESP_LOGE(TAG, "Failed to get temperature");
+    //     }
+
+    //     vTaskDelay(pdMS_TO_TICKS(1000));
+    // }
 #endif
 }

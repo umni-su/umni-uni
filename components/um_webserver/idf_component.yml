@@ -3,6 +3,9 @@ dependencies:
     version: '>=5.5.2'
   espressif/cjson:
     version: "*"
+  um_automations:
+    path: ../um_automations
+    version: "*"
   um_sse_server:
     path: ../um_sse_server
     version: "*"

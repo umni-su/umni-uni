@@ -20,10 +20,10 @@ extern "C"
      */
     typedef struct
     {
-        uint8_t channel_id;       /**< Channel ID (0 or 1) */
-        char label[32];           /**< Human-readable label for the channel */
-        bool active;              /**< Whether channel is active */
-        float calibration_offset; /**< Calibration offset in °C (optional) */
+        uint8_t channel_id; /**< Channel ID (0 or 1) */
+        char label[32];     /**< Human-readable label for the channel */
+        bool active;        /**< Whether channel is active */
+        double calibration; /**< Calibration offset in °C (optional) */
         // Note: ADC channel is fixed from Kconfig, not stored in config
     } um_ntc_channel_config_t;
 
