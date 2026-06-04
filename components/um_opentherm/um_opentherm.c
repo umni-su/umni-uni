@@ -567,12 +567,16 @@ void um_opentherm_control_task_handler(void *pvParameter)
     // Добавьте переменную состояния в начало файла
     static int sensor_step = 0;
 
+    um_ot_detect_supported_features();
+
     while (1)
     {
         um_ot_send_master_status();
         if (um_ot_response_ok())
         {
-            // Всегда отправляем уставки
+            // um_ot_detect_supported_features();
+            um_ot_read_configuration(); // TODO move to other better place
+            //  Всегда отправляем уставки
             esp_ot_set_boiler_temperature(targetCHTemp);
             esp_ot_set_dhw_setpoint(targetDHWTemp);
 
@@ -580,7 +584,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
             switch (sensor_step)
             {
             case 0:
-                um_ot_read_configuration(); // TODO move to other better place
+
                 ot_data.boiler_temperature = esp_ot_get_boiler_temperature();
                 break;
             case 1:
@@ -981,18 +985,21 @@ char *um_ot_get_status_json(void)
 /**
  * @brief Определение поддерживаемых функций котла (один раз при старте)
  */
+/**
+ * @brief Определение поддерживаемых функций котла (один раз при старте)
+ */
 void um_ot_detect_supported_features(void)
 {
-    ESP_LOGI(TAG, "=== Detecting boiler supported features ===");
+
+    ESP_LOGI(TAG, "=== Detecting boiler supported features (ONE TIME) ===");
 
     // Быстрая проверка - есть ли котел?
     esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_STATUS, 0));
-    vTaskDelay(pdMS_TO_TICKS(50));
+    vTaskDelay(pdMS_TO_TICKS(100));
 
     if (!um_ot_response_ok())
     {
         ESP_LOGW(TAG, "Boiler not responding, skipping feature detection");
-        // Устанавливаем значения по умолчанию (false)
         memset(&ot_data.supported, 0, sizeof(ot_data.supported));
         return;
     }
@@ -1000,65 +1007,59 @@ void um_ot_detect_supported_features(void)
     unsigned long response;
     open_therm_message_type_t msg_type;
 
-    // 1. Проверяем модуляцию (ID=17)
+    // ВАЖНО: Используем READ-only запросы, не меняем настройки котла!
+
+    // 1. Проверяем модуляцию (ID=17) - ТОЛЬКО ЧТЕНИЕ
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_REL_MOD_LEVEL, 0));
     vTaskDelay(pdMS_TO_TICKS(50));
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.modulation = (msg_type != OT_UNKNOWN_DATA_ID);
     ESP_LOGI(TAG, "Modulation read: %s", ot_data.supported.modulation ? "SUPPORTED" : "NOT supported");
 
-    // 2. Проверяем запись макс. модуляции (ID=14)
-    response = esp_ot_send_request(esp_ot_build_request(OT_WRITE_DATA, MSG_ID_MAX_REL_MOD_LEVEL_SETTING, 50));
+    // 2. Проверяем поддержку записи макс. модуляции (ID=14) - НЕ ПИШЕМ!
+    // Для проверки поддержки используем READ, а не WRITE!
+    response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_MAX_REL_MOD_LEVEL_SETTING, 0));
     vTaskDelay(pdMS_TO_TICKS(50));
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.modulation_write = (msg_type != OT_UNKNOWN_DATA_ID && msg_type != OT_DATA_INVALID);
     ESP_LOGI(TAG, "Modulation write: %s", ot_data.supported.modulation_write ? "SUPPORTED" : "NOT supported");
 
-    // 3. Проверяем кривую нагрева (ID=58)
+    // 3. Проверяем кривую нагрева (ID=58) - ТОЛЬКО ЧТЕНИЕ
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_OTC_CURVE_RATIO, 0));
-    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
-    taskYIELD();                   // ДОБАВИТЬ
+    vTaskDelay(pdMS_TO_TICKS(50));
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.heat_curve = (msg_type != OT_UNKNOWN_DATA_ID);
     ESP_LOGI(TAG, "Heat curve read: %s", ot_data.supported.heat_curve ? "SUPPORTED" : "NOT supported");
 
-    // 4. Проверяем запись кривой нагрева
-    response = esp_ot_send_request(esp_ot_build_request(OT_WRITE_DATA, MSG_ID_OTC_CURVE_RATIO, 50 << 8));
-    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
-    taskYIELD();                   // ДОБАВИТЬ
-    msg_type = esp_ot_get_message_type(response);
-    ot_data.supported.heat_curve_write = (msg_type != OT_UNKNOWN_DATA_ID && msg_type != OT_DATA_INVALID);
+    // 4. Проверяем поддержку записи кривой нагрева - ТОЛЬКО ЧТЕНИЕ
+    response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_OTC_CURVE_RATIO, 0));
+    // Поддержка записи определяется наличием bounds
+    esp_ot_min_max_t bounds = esp_ot_get_heat_curve_ul_bounds();
+    ot_data.supported.heat_curve_write = (bounds.min > 0 || bounds.max > 0);
     ESP_LOGI(TAG, "Heat curve write: %s", ot_data.supported.heat_curve_write ? "SUPPORTED" : "NOT supported");
 
-    // 5. Проверяем датчик наружной температуры (ID=27)
+    // 5. Проверяем датчики (только чтение) - OK
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_TOUTSIDE, 0));
-    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
-    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.outside_temp = (msg_type != OT_UNKNOWN_DATA_ID);
+    ESP_LOGI(TAG, "OTC: %s", ot_data.supported.outside_temp ? "SUPPORTED" : "NOT supported");
 
-    // 6. Проверяем датчик обратки (ID=28)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_TRET, 0));
-    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
-    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.return_temp = (msg_type != OT_UNKNOWN_DATA_ID);
+    ESP_LOGI(TAG, "Return temperature %s", ot_data.supported.return_temp ? "SUPPORTED" : "NOT supported");
 
-    // 7. Проверяем давление (ID=18)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_CH_PRESSURE, 0));
-    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
-    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.pressure = (msg_type != OT_UNKNOWN_DATA_ID);
+    ESP_LOGI(TAG, "Pressure %s", ot_data.supported.pressure ? "SUPPORTED" : "NOT supported");
 
-    // 8. Проверяем расходомер DHW (ID=19)
     response = esp_ot_send_request(esp_ot_build_request(OT_READ_DATA, MSG_ID_DHW_FLOW_RATE, 0));
-    vTaskDelay(pdMS_TO_TICKS(50)); // ДОБАВИТЬ
-    taskYIELD();                   // ДОБАВИТЬ
     msg_type = esp_ot_get_message_type(response);
     ot_data.supported.flow_rate = (msg_type != OT_UNKNOWN_DATA_ID);
+    ESP_LOGI(TAG, "Flow rate %s", ot_data.supported.flow_rate ? "SUPPORTED" : "NOT supported");
 
-    ESP_LOGI(TAG, "=== Feature detection complete ===");
+    ESP_LOGI(TAG, "=== Feature detection complete (one time) ===");
 }
 
 #endif // UM_FEATURE_ENABLED(OPENTHERM)
