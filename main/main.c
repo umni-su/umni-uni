@@ -412,6 +412,15 @@ void um_main_device_handler(void *args)
                     {
                         publish_sensor_data(UM_CAP_ONEWIRE, UM_CATEGORY_ONEWIRE,
                                             sensor->serial, ow_temp, true);
+                        um_event_sensor_payload_t ow_payload = {
+                            .category = UM_CATEGORY_ONEWIRE,
+                            .capability = (uint8_t)UM_CAP_ONEWIRE,
+                            .serial = sensor->serial,
+                            .value = sensor->temperature};
+                        um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                                         &ow_payload,
+                                         sizeof(um_event_sensor_payload_t),
+                                         portMAX_DELAY);
                     }
                 }
             }
@@ -423,6 +432,15 @@ void um_main_device_handler(void *args)
         if (um_ntc_read_temperature(UM_NTC_CHANNEL_1, &temp1) == ESP_OK)
         {
             publish_sensor_data(UM_CAP_NTC1, UM_CATEGORY_NTC, NULL, temp1, false);
+            um_event_sensor_payload_t ntc1_payload = {
+                .category = UM_CATEGORY_NTC,
+                .capability = (uint8_t)UM_CAP_NTC1,
+                .serial = NULL,
+                .value = temp1};
+            um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                             &ntc1_payload,
+                             sizeof(um_event_sensor_payload_t),
+                             portMAX_DELAY);
         }
 #endif
 
@@ -431,6 +449,15 @@ void um_main_device_handler(void *args)
         if (um_ntc_read_temperature(UM_NTC_CHANNEL_2, &temp2) == ESP_OK)
         {
             publish_sensor_data(UM_CAP_NTC2, UM_CATEGORY_NTC, NULL, temp2, false);
+            um_event_sensor_payload_t ntc2_payload = {
+                .category = UM_CATEGORY_NTC,
+                .capability = (uint8_t)UM_CAP_NTC2,
+                .serial = NULL,
+                .value = temp2};
+            um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                             &ntc2_payload,
+                             sizeof(um_event_sensor_payload_t),
+                             portMAX_DELAY);
         }
 #endif
 
@@ -439,6 +466,15 @@ void um_main_device_handler(void *args)
         if (um_adc_read_raw(UM_ADC_CHANNEL_1, &adc1) == ESP_OK)
         {
             publish_sensor_data(UM_CAP_AI1, UM_CATEGORY_AI, NULL, adc1, false);
+            um_event_sensor_payload_t ai1_payload = {
+                .category = UM_CATEGORY_AI,
+                .capability = (uint8_t)UM_CAP_AI1,
+                .serial = NULL,
+                .value = adc1};
+            um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                             &ai1_payload,
+                             sizeof(um_event_sensor_payload_t),
+                             portMAX_DELAY);
         }
 #endif
 
@@ -447,6 +483,15 @@ void um_main_device_handler(void *args)
         if (um_adc_read_raw(UM_ADC_CHANNEL_2, &adc2) == ESP_OK)
         {
             publish_sensor_data(UM_CAP_AI2, UM_CATEGORY_AI, NULL, adc2, false);
+            um_event_sensor_payload_t ai2_payload = {
+                .category = UM_CATEGORY_AI,
+                .capability = (uint8_t)UM_CAP_AI2,
+                .serial = NULL,
+                .value = adc2};
+            um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
+                             &ai2_payload,
+                             sizeof(um_event_sensor_payload_t),
+                             portMAX_DELAY);
         }
 #endif
         vTaskDelay(60000 / portTICK_PERIOD_MS);
@@ -556,7 +601,7 @@ void app_main(void)
 #endif
 
     ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "Приложение запущено успешно!");
+    ESP_LOGI(TAG, "Application startup complete!");
 
     xTaskCreatePinnedToCore(um_main_device_handler, "um_main_device_handler", 4096, NULL, 3, &um_sensors_task_handle, 1);
 

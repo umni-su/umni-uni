@@ -571,6 +571,11 @@ void um_opentherm_control_task_handler(void *pvParameter)
 
     while (1)
     {
+        if (!otEnabled)
+        {
+            vTaskDelay(pdMS_TO_TICKS(4000));
+            continue;
+        }
         um_ot_send_master_status();
         if (um_ot_response_ok())
         {
@@ -732,6 +737,7 @@ void um_ot_set_active(bool state)
         return;
     um_nvs_set_ot_enabled(state);
     otEnabled = state;
+    ot_data.ready = otEnabled;
 }
 
 void um_ot_set_ch_en(bool state)

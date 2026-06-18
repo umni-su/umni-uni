@@ -251,7 +251,7 @@ esp_err_t um_webserver_register_get(const char *uri, esp_err_t (*data_func)(http
     httpd_uri_t uri_struct = {
         .uri = uri,
         .method = HTTP_GET,
-        .handler = get_wrapper, // ← обертка, не базовый обработчик!
+        .handler = get_wrapper,
         .user_ctx = ctx,
     };
 
@@ -301,21 +301,27 @@ esp_err_t um_webserver_register_put(const char *uri,
 }
 
 // Вспомогательная функция для регистрации DELETE
-esp_err_t um_webserver_register_delete(const char *uri,
-                                       esp_err_t (*process_func)(httpd_req_t *, cJSON *, cJSON **))
+
+esp_err_t um_webserver_register_delete(const char *uri, esp_err_t (*data_func)(httpd_req_t *, cJSON **))
 {
-    if (!server || !uri || !process_func)
+    if (!server || !uri || !data_func)
+    {
         return ESP_ERR_INVALID_ARG;
+    }
 
-    post_ctx_t *ctx = malloc(sizeof(post_ctx_t));
+    // Создаем контекст
+    get_ctx_t *ctx = malloc(sizeof(get_ctx_t));
     if (!ctx)
+    {
         return ESP_ERR_NO_MEM;
-    ctx->process_data = process_func;
+    }
+    ctx->get_data = data_func;
 
+    // Регистрируем
     httpd_uri_t uri_struct = {
         .uri = uri,
         .method = HTTP_DELETE,
-        .handler = post_wrapper,
+        .handler = get_wrapper,
         .user_ctx = ctx,
     };
 
@@ -860,6 +866,7 @@ static esp_err_t um_webserver_post_automations(httpd_req_t *req, cJSON *input, c
     {
         return ESP_FAIL;
     }
+    return err;
 #else
     *output = cJSON_CreateObject();
     cJSON_AddStringToObject(*output, "error", "Automations feature disabled");
@@ -944,7 +951,7 @@ static esp_err_t um_webserver_put_automations(httpd_req_t *req, cJSON *input, cJ
 /**
  * @brief DELETE /api/automations/{id} - Удалить правило по ID
  */
-static esp_err_t um_webserver_delete_automations(httpd_req_t *req, cJSON *input, cJSON **output)
+static esp_err_t um_webserver_delete_automations(httpd_req_t *req, cJSON **output)
 {
 #if UM_FEATURE_ENABLED(AUTOMATIONS)
     // Извлекаем ID из URI

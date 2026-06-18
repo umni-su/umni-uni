@@ -25,10 +25,11 @@ extern "C"
 
     typedef struct
     {
-        uint32_t id;            // Идентификатор правила (генерируется автоматически)
-        uint32_t condition_cap; // UM_CAP_* (ntc1, out1, etc.)
-        um_automation_op_t op;  // Оператор сравнения
-        double value;           // Пороговое значение
+        uint32_t id;                // Идентификатор правила
+        uint32_t condition_cap;     // UM_CAP_* (ntc1, onewire, rf433, opentherm)
+        char condition_subtype[32]; // Опционально: serial для onewire/rf433, "ch"/"dhw" для opentherm
+        um_automation_op_t op;      // Оператор сравнения
+        double value;               // Пороговое значение
         // Действия THEN
         uint8_t then_count;
         struct
