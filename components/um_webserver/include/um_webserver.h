@@ -66,6 +66,8 @@ extern "C"
      */
     esp_err_t um_webserver_stop(void);
 
+    esp_err_t um_webserver_mark_ota(void);
+
 #endif // UM_FEATURE_ENABLED(WEBSERVER)
 
 #ifdef __cplusplus

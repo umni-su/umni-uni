@@ -2,6 +2,11 @@
 #include <math.h>
 #include <sys/param.h>
 #include "esp_log.h"
+#include "esp_err.h"
+
+#include "esp_ota_ops.h"
+#include "esp_partition.h"
+#include "esp_image_format.h"
 
 #include "base_config.h"
 #include "um_nvs.h"
@@ -54,6 +59,10 @@
 #if UM_FEATURE_ENABLED(WEBSERVER)
 
 #define WEBSERVER_TAG "um_webserver"
+#define OTA_TAG "um_webserver_ota"
+
+#define OTA_BUFFER_SIZE 8192
+#define OTA_MAX_FILE_SIZE (5 * 1024 * 1024)
 
 static const char *REST_TAG = "um_webserver";
 static httpd_handle_t server = NULL;
@@ -1909,6 +1918,216 @@ static esp_err_t um_webserver_get_wifi_networks(httpd_req_t *req, cJSON **output
 }
 
 /**
+ * @brief POST /api/ota/update - Обновление прошивки по воздуху
+ *
+ * Принимает бинарный файл прошивки и выполняет OTA обновление
+ * НЕ использует um_webserver_base_post_handler, т.к. работает с бинарными данными
+ */
+static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
+{
+    esp_err_t err = ESP_OK;
+    esp_ota_handle_t ota_handle = 0;
+    const esp_partition_t *ota_partition = NULL;
+    uint8_t *ota_buffer = NULL;
+    size_t total_received = 0;
+    int remaining = 0;
+
+    ESP_LOGI(OTA_TAG, "Starting OTA update. Size: %zu bytes", req->content_len);
+
+    // Проверяем размер
+    if (req->content_len == 0)
+    {
+        httpd_resp_set_status(req, "400 Bad Request");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Empty request\"}");
+        return ESP_FAIL;
+    }
+
+    if (req->content_len > OTA_MAX_FILE_SIZE)
+    {
+        httpd_resp_set_status(req, "413 Payload Too Large");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"File too large. Max size: 5MB\"}");
+        return ESP_FAIL;
+    }
+
+    // Выделяем буфер
+    ota_buffer = malloc(OTA_BUFFER_SIZE);
+    if (!ota_buffer)
+    {
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Out of memory\"}");
+        return ESP_FAIL;
+    }
+
+    // Получаем OTA партицию
+    ota_partition = esp_ota_get_next_update_partition(NULL);
+    if (!ota_partition)
+    {
+        ESP_LOGE(OTA_TAG, "Failed to get OTA partition");
+        free(ota_buffer);
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"No OTA partition found\"}");
+        return ESP_FAIL;
+    }
+
+    ESP_LOGI(OTA_TAG, "OTA partition: %s (offset: 0x%x, size: %d)",
+             ota_partition->label, ota_partition->address, ota_partition->size);
+
+    // Начинаем OTA
+    err = esp_ota_begin(ota_partition, OTA_SIZE_UNKNOWN, &ota_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(OTA_TAG, "esp_ota_begin failed: %s", esp_err_to_name(err));
+        free(ota_buffer);
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to start OTA\"}");
+        return ESP_FAIL;
+    }
+
+    // Принимаем данные чанками и записываем в OTA
+    while (total_received < req->content_len)
+    {
+        remaining = req->content_len - total_received;
+        int recv_size = (remaining < OTA_BUFFER_SIZE) ? remaining : OTA_BUFFER_SIZE;
+
+        int received = httpd_req_recv(req, (char *)ota_buffer, recv_size);
+        if (received <= 0)
+        {
+            if (received == HTTPD_SOCK_ERR_TIMEOUT)
+            {
+                ESP_LOGW(OTA_TAG, "Receive timeout, aborting...");
+            }
+            else
+            {
+                ESP_LOGE(OTA_TAG, "Receive error: %d", received);
+            }
+            esp_ota_abort(ota_handle);
+            free(ota_buffer);
+            httpd_resp_set_status(req, "500 Internal Server Error");
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to receive data\"}");
+            return ESP_FAIL;
+        }
+
+        err = esp_ota_write(ota_handle, ota_buffer, received);
+        if (err != ESP_OK)
+        {
+            ESP_LOGE(OTA_TAG, "esp_ota_write failed: %s", esp_err_to_name(err));
+            esp_ota_abort(ota_handle);
+            free(ota_buffer);
+            httpd_resp_set_status(req, "500 Internal Server Error");
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to write OTA data\"}");
+            return ESP_FAIL;
+        }
+
+        total_received += received;
+
+        // Выводим прогресс каждые 10%
+        if (req->content_len > 0)
+        {
+            int progress = (total_received * 100) / req->content_len;
+            if (progress % 10 == 0 && progress > 0)
+            {
+                cJSON *progress_data = cJSON_CreateObject();
+                cJSON_AddNumberToObject(progress_data, "progress", (uint8_t)progress);
+                char *progress_data_string = cJSON_PrintUnformatted(progress_data);
+                um_sse_publish_event("fw_update", progress_data_string);
+                ESP_LOGI(OTA_TAG, "OTA progress: %d%% (%zu/%zu bytes)",
+                         progress, total_received, req->content_len);
+                free(progress_data);
+                free(progress_data_string);
+            }
+        }
+    }
+
+    ESP_LOGI(OTA_TAG, "OTA data received: %zu bytes", total_received);
+
+    // Завершаем OTA операцию
+    err = esp_ota_end(ota_handle);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(OTA_TAG, "esp_ota_end failed: %s", esp_err_to_name(err));
+        free(ota_buffer);
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to finalize OTA\"}");
+        return ESP_FAIL;
+    }
+
+    // Устанавливаем загрузочную партицию
+    err = esp_ota_set_boot_partition(ota_partition);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(OTA_TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
+        free(ota_buffer);
+        httpd_resp_set_status(req, "500 Internal Server Error");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to set boot partition\"}");
+        return ESP_FAIL;
+    }
+
+    free(ota_buffer);
+
+    // Формируем успешный ответ (в стиле вашего кода)
+    httpd_resp_set_status(req, "200 OK");
+    httpd_resp_set_type(req, "application/json");
+
+    cJSON *root = cJSON_CreateObject();
+    if (root)
+    {
+        cJSON_AddBoolToObject(root, "success", true);
+        cJSON_AddStringToObject(root, "message", "Update successful. Device will reboot in 5 seconds...");
+        cJSON_AddNumberToObject(root, "bytes_written", total_received);
+
+        char *response = cJSON_PrintUnformatted(root);
+        if (response)
+        {
+            httpd_resp_sendstr(req, response);
+            free(response);
+        }
+        else
+        {
+            httpd_resp_sendstr(req, "{\"success\":true,\"message\":\"Update successful\"}");
+        }
+        cJSON_Delete(root);
+    }
+    else
+    {
+        httpd_resp_sendstr(req, "{\"success\":true,\"message\":\"Update successful\"}");
+    }
+
+    ESP_LOGI(OTA_TAG, "OTA update successful! Rebooting in 5 seconds...");
+
+    // Перезагрузка (используем вашу существующую функцию um_restart)
+    xTaskCreatePinnedToCore(um_restart, "ota_restart", configMINIMAL_STACK_SIZE, NULL, 2, NULL, 0);
+
+    return ESP_OK;
+}
+
+/**
+ * @brief Обертка для OTA обработчика с проверкой авторизации
+ */
+static esp_err_t ota_handler_wrapper(httpd_req_t *req)
+{
+    // Проверяем авторизацию
+    if (!check_auth(req))
+    {
+        httpd_resp_set_status(req, "401 Unauthorized");
+        httpd_resp_set_type(req, "application/json");
+        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Unauthorized\"}");
+        return ESP_FAIL;
+    }
+
+    // Вызываем OTA обработчик
+    return um_webserver_ota_update_handler(req);
+}
+
+/**
  * @brief Обработчик для статических файлов
  */
 static esp_err_t um_webserver_static_handler(httpd_req_t *req)
@@ -1985,6 +2204,11 @@ static esp_err_t um_webserver_static_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+esp_err_t um_webserver_mark_ota(void)
+{
+    return esp_ota_mark_app_valid_cancel_rollback();
+}
+
 /**
  * @brief Инициализация веб-сервера
  */
@@ -2043,6 +2267,13 @@ esp_err_t um_webserver_start(void)
     um_webserver_register_delete("/api/automations/*", um_webserver_delete_automations);
 
     um_sse_server_init(server, "/sse/events");
+
+    httpd_uri_t ota_uri = {
+        .uri = "/api/ota/update",
+        .method = HTTP_POST,
+        .handler = ota_handler_wrapper,
+        .user_ctx = NULL};
+    httpd_register_uri_handler(server, &ota_uri);
 
     // Обработчик для корневого пути (статический HTML)
     httpd_uri_t root_uri = {

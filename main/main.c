@@ -506,6 +506,8 @@ void shutdown_handler()
 
 void app_main(void)
 {
+    um_webserver_mark_ota();
+
     ESP_LOGI(TAG, "========================================");
     ESP_LOGI(TAG, "Firmware Version: %s", CONFIG_UMNI_FW_VERSION);
     ESP_LOGI(TAG, "========================================");

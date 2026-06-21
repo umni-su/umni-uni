@@ -17,7 +17,6 @@ static sdmmc_card_t *sd_card = NULL;
 static void um_sd_cd_interrupt_task(void *arg)
 {
     int level = gpio_get_level(CONFIG_UM_CFG_SDCARD_DETECT_GPIO);
-    printf("Level %d ", level);
     if (level == 0)
     {
         esp_event_post(UMNI_EVENT_BASE, UMNI_EVENT_SDCARD_PUSH_IN, NULL, sizeof(NULL), portMAX_DELAY);
@@ -63,7 +62,8 @@ void um_init_sd_cd(void)
     // Убедитесь, что служба прерываний GPIO установлена
     esp_err_t res = gpio_install_isr_service(0);
 
-    if(res == ESP_ERR_INVALID_STATE){
+    if (res == ESP_ERR_INVALID_STATE)
+    {
         ESP_LOGI(TAG, "SD CD interrupt handler already installed");
     }
 
@@ -136,7 +136,8 @@ esp_err_t um_sd_mount(void)
     };
 
     ret = spi_bus_initialize(host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
-    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
+    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE)
+    {
         ESP_LOGE(TAG, "Failed to initialize bus.");
         return ESP_FAIL;
     }
@@ -148,25 +149,36 @@ esp_err_t um_sd_mount(void)
     {
         ESP_LOGI(TAG, "SD card mounted successfully");
         // Вывод информации о карте
-        //sdmmc_card_print_info(stdout, sd_card);
+        // sdmmc_card_print_info(stdout, sd_card);
         char *type;
-        if (sd_card->is_sdio) {
+        if (sd_card->is_sdio)
+        {
             type = "SDIO";
-        } else if (sd_card->is_mmc) {
-            type = "MMC";
-        } else {
-                if ((sd_card->ocr & (1<<30)) == 0) {
-                    type = "SDSC";
-                } else {
-                    if (sd_card->ocr & (1<<24)) {
-                        type = "SDHC/SDXC (UHS-I)";
-                    } else {
-                        type = "SDHC";
-                    }
-                }
         }
-        uint64_t size = ((uint64_t) sd_card->csd.capacity) * sd_card->csd.sector_size / (1024 * 1024);
-        ESP_LOGI(TAG, "✅ SD Card name: %s, type: %s, capacity: %llu MB",sd_card->cid.name, type, size);
+        else if (sd_card->is_mmc)
+        {
+            type = "MMC";
+        }
+        else
+        {
+            if ((sd_card->ocr & (1 << 30)) == 0)
+            {
+                type = "SDSC";
+            }
+            else
+            {
+                if (sd_card->ocr & (1 << 24))
+                {
+                    type = "SDHC/SDXC (UHS-I)";
+                }
+                else
+                {
+                    type = "SDHC";
+                }
+            }
+        }
+        uint64_t size = ((uint64_t)sd_card->csd.capacity) * sd_card->csd.sector_size / (1024 * 1024);
+        ESP_LOGI(TAG, "✅ SD Card name: %s, type: %s, capacity: %llu MB", sd_card->cid.name, type, size);
         esp_event_post(UMNI_EVENT_BASE, UMNI_EVENT_SDCARD_MOUNTED, NULL, sizeof(NULL), portMAX_DELAY);
     }
     else

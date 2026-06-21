@@ -1,5 +1,10 @@
 # Name, Type, SubType, Offset, Size, Flags
-nvs, data, nvs, 0x9000, 0x6000,
-phy_init, data, phy, 0xF000, 0x1000,
-storage, data, spiffs, 0x10000, 0xF0000,
-factory, app, factory, 0x100000, 0x300000,
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xF000,   0x1000,
+otadata,  data, ota,     0x10000,  0x2000,
+storage,  data, spiffs,  0x12000,  0x2E000,   
+# 184 КБ под файлы 
+ota_0,    app,  ota_0,   0x40000,  0x1E0000,  
+# 1.875 МБ под Прошивку №1
+ota_1,    app,  ota_1,   0x220000, 0x1E0000,  
+# 1.875 МБ под Прошивку №2
