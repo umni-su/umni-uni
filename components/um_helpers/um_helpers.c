@@ -552,7 +552,7 @@ esp_err_t um_mdns_add_discovery(void)
         discovery[0].value = unique_id;
         discovery[1].value = "UMNI Device";
     }
-    esp_err_t err = um_mdns_add_service("UMNI UNI REST API",
+    esp_err_t err = um_mdns_add_service(hostname,
                                         "_umni_api",
                                         "_tcp",
                                         80,

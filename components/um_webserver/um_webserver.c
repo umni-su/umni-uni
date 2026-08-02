@@ -543,7 +543,7 @@ static esp_err_t get_config_data(httpd_req_t *req, cJSON **data)
         return ESP_ERR_NOT_SUPPORTED;
 #endif
     }
-    else if (strcmp(section, "adc") == 0)
+    else if ((strcmp(section, "adc") == 0) || (strcmp(section, "ai") == 0))
     {
 #if UM_FEATURE_ENABLED(AI1) || UM_FEATURE_ENABLED(AI2)
         config_str = um_adc_config_read();
