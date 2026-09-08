@@ -17,6 +17,7 @@ static const char *TAG = "um_automations";
 
 static um_automation_rule_t s_rules[UM_AUTOMATIONS_MAX_RULES];
 static uint8_t s_rule_count = 0;
+static bool s_rule_state[UM_AUTOMATIONS_MAX_RULES] = {false};
 
 // Вспомогательные функции
 static um_automation_op_t op_from_string(const char *op_str)
@@ -49,20 +50,62 @@ static const char *op_to_string(um_automation_op_t op)
     }
 }
 
-static bool evaluate_condition(um_automation_op_t op, double sensor_value, double threshold)
+static bool evaluate_condition(um_automation_op_t op, double sensor_value,
+                               double threshold, double hysteresis, bool prev_state)
 {
     switch (op)
     {
     case UM_AUTO_OP_EQUAL:
         return fabs(sensor_value - threshold) < 1e-6;
+
     case UM_AUTO_OP_GREATER:
-        return sensor_value > threshold;
-    case UM_AUTO_OP_LESS:
-        return sensor_value < threshold;
+        if (prev_state)
+        {
+            // Уже включено - остаёмся, пока не упадём ниже порога - гистерезис
+            return sensor_value > threshold - hysteresis;
+        }
+        else
+        {
+            // Выключено - включаем строго по условию if (> threshold)
+            return sensor_value > threshold;
+        }
+
     case UM_AUTO_OP_GREATER_EQUAL:
-        return sensor_value >= threshold;
+        if (prev_state)
+        {
+            // Уже включено - остаёмся, пока не упадём ниже порога - гистерезис
+            return sensor_value >= threshold - hysteresis;
+        }
+        else
+        {
+            // Выключено - включаем строго по условию if (>= threshold)
+            return sensor_value >= threshold;
+        }
+
+    case UM_AUTO_OP_LESS:
+        if (prev_state)
+        {
+            // Уже включено - остаёмся, пока не поднимемся выше порога + гистерезис
+            return sensor_value < threshold + hysteresis;
+        }
+        else
+        {
+            // Выключено - включаем строго по условию if (< threshold)
+            return sensor_value < threshold;
+        }
+
     case UM_AUTO_OP_LESS_EQUAL:
-        return sensor_value <= threshold;
+        if (prev_state)
+        {
+            // Уже включено - остаёмся, пока не поднимемся выше порога + гистерезис
+            return sensor_value <= threshold + hysteresis;
+        }
+        else
+        {
+            // Выключено - включаем строго по условию if (<= threshold)
+            return sensor_value <= threshold;
+        }
+
     default:
         return false;
     }
@@ -139,11 +182,19 @@ static void check_automations(um_capability_t cap, const char *subtype, double v
         }
 
         // Проверяем значение
-        bool condition_true = evaluate_condition(rule->op, value, rule->value);
+        bool condition_true = evaluate_condition(
+            rule->op, value,
+            rule->value,
+            rule->hysteresis,
+            s_rule_state[i]);
+        s_rule_state[i] = condition_true;
 
         ESP_LOGI(TAG, "Rule %d: cap=%d subtype=%s value=%.2f th=%.2f -> %s",
                  rule->id, cap, subtype ? subtype : "NULL",
                  value, rule->value, condition_true ? "true" : "false");
+
+        ESP_LOGI(TAG, "Rule %d: hysteresis=%.2f, state=%d, value=%.2f, th=%.2f",
+                 rule->id, rule->hysteresis, s_rule_state[i], value, rule->value);
 
         if (condition_true)
         {
@@ -242,6 +293,9 @@ static esp_err_t load_rules_from_file(void)
         cJSON *cap_json = cJSON_GetObjectItem(if_obj, "capability");
         cJSON *op_json = cJSON_GetObjectItem(if_obj, "op");
         cJSON *val_json = cJSON_GetObjectItem(if_obj, "value");
+
+        cJSON *hyst_json = cJSON_GetObjectItem(if_obj, "hysteresis");
+        rule.hysteresis = cJSON_IsNumber(hyst_json) ? hyst_json->valuedouble : 0.0;
 
         if (!cap_json || !cJSON_IsString(cap_json) ||
             !op_json || !cJSON_IsString(op_json) ||
@@ -356,6 +410,8 @@ static esp_err_t load_rules_from_file(void)
                     rule.else_actions[rule.else_count].subtype[0] = 0;
                 }
 
+                ESP_LOGI(TAG, "Rule %d: hysteresis=%.2f", rule.id, rule.hysteresis);
+
                 rule.else_actions[rule.else_count].action = (uint8_t)act_act->valueint;
                 rule.else_count++;
             }
@@ -364,7 +420,7 @@ static esp_err_t load_rules_from_file(void)
         {
             rule.else_count = 0;
         }
-
+        s_rule_state[s_rule_count] = false;
         s_rules[s_rule_count++] = rule;
     }
 
@@ -398,6 +454,10 @@ esp_err_t um_automations_save(void)
         }
         cJSON_AddStringToObject(if_obj, "op", op_to_string(r->op));
         cJSON_AddNumberToObject(if_obj, "value", r->value);
+        if (r->hysteresis > 0)
+        {
+            cJSON_AddNumberToObject(if_obj, "hysteresis", r->hysteresis);
+        }
         cJSON_AddItemToObject(rule_obj, "if", if_obj);
 
         // then
@@ -500,6 +560,9 @@ esp_err_t um_automations_add_rule(cJSON *rule_json)
         ESP_LOGE(TAG, "Invalid 'if' fields");
         return ESP_ERR_INVALID_ARG;
     }
+
+    cJSON *hyst_json = cJSON_GetObjectItem(if_obj, "hysteresis");
+    new_rule.hysteresis = cJSON_IsNumber(hyst_json) ? hyst_json->valuedouble : 0.0;
 
     new_rule.condition_cap = um_capabilities_get_by_name(cap_json->valuestring);
     if (new_rule.condition_cap == UM_CAP_NONE)
@@ -622,6 +685,7 @@ esp_err_t um_automations_add_rule(cJSON *rule_json)
     }
 
     s_rules[s_rule_count++] = new_rule;
+    s_rule_state[s_rule_count - 1] = false;
     ESP_LOGI(TAG, "Added rule ID=%d, now %d rules", new_rule.id, s_rule_count);
 
     return um_automations_save();
@@ -648,6 +712,7 @@ esp_err_t um_automations_remove_rule(uint32_t id)
     for (int i = idx; i < s_rule_count - 1; i++)
     {
         s_rules[i] = s_rules[i + 1];
+        s_rule_state[i] = s_rule_state[i + 1];
     }
     s_rule_count--;
 
@@ -705,6 +770,9 @@ esp_err_t um_automations_update_rule(uint32_t id, cJSON *rule_json)
 
     new_rule.op = op_from_string(op_json->valuestring);
     new_rule.value = val_json->valuedouble;
+
+    cJSON *hyst_json = cJSON_GetObjectItem(if_obj, "hysteresis");
+    new_rule.hysteresis = cJSON_IsNumber(hyst_json) ? hyst_json->valuedouble : 0.0;
 
     // then
     cJSON *then_arr = cJSON_GetObjectItem(rule_json, "then");
@@ -800,6 +868,7 @@ esp_err_t um_automations_update_rule(uint32_t id, cJSON *rule_json)
     }
 
     s_rules[idx] = new_rule;
+    s_rule_state[idx] = false;
     ESP_LOGI(TAG, "Updated rule ID=%d", id);
 
     return um_automations_save();
@@ -828,6 +897,7 @@ char *um_automations_get_config_json(void)
         }
         cJSON_AddStringToObject(if_obj, "op", op_to_string(r->op));
         cJSON_AddNumberToObject(if_obj, "value", r->value);
+        cJSON_AddNumberToObject(if_obj, "hysteresis", r->hysteresis);
         cJSON_AddItemToObject(rule_obj, "if", if_obj);
 
         cJSON *then_arr = cJSON_CreateArray();

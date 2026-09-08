@@ -30,6 +30,7 @@ extern "C"
         char condition_subtype[32]; // Опционально: serial для onewire/rf433, "ch"/"dhw" для opentherm
         um_automation_op_t op;      // Оператор сравнения
         double value;               // Пороговое значение
+        double hysteresis;          // Порог гистерезиса, 0 = выключен
         // Действия THEN
         uint8_t then_count;
         struct
