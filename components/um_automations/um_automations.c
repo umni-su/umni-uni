@@ -18,6 +18,8 @@ static const char *TAG = "um_automations";
 static um_automation_rule_t s_rules[UM_AUTOMATIONS_MAX_RULES];
 static uint8_t s_rule_count = 0;
 static bool s_rule_state[UM_AUTOMATIONS_MAX_RULES] = {false};
+static double s_rule_last_value[UM_AUTOMATIONS_MAX_RULES];
+static bool s_rule_has_value[UM_AUTOMATIONS_MAX_RULES] = {false};
 
 // Вспомогательные функции
 static um_automation_op_t op_from_string(const char *op_str)
@@ -188,6 +190,8 @@ static void check_automations(um_capability_t cap, const char *subtype, double v
             rule->hysteresis,
             s_rule_state[i]);
         s_rule_state[i] = condition_true;
+        s_rule_last_value[i] = value;
+        s_rule_has_value[i] = true;
 
         ESP_LOGI(TAG, "Rule %d: cap=%d subtype=%s value=%.2f th=%.2f -> %s",
                  rule->id, cap, subtype ? subtype : "NULL",
@@ -421,6 +425,7 @@ static esp_err_t load_rules_from_file(void)
             rule.else_count = 0;
         }
         s_rule_state[s_rule_count] = false;
+        s_rule_has_value[s_rule_count] = false;
         s_rules[s_rule_count++] = rule;
     }
 
@@ -686,6 +691,7 @@ esp_err_t um_automations_add_rule(cJSON *rule_json)
 
     s_rules[s_rule_count++] = new_rule;
     s_rule_state[s_rule_count - 1] = false;
+    s_rule_has_value[s_rule_count - 1] = false;
     ESP_LOGI(TAG, "Added rule ID=%d, now %d rules", new_rule.id, s_rule_count);
 
     return um_automations_save();
@@ -713,6 +719,8 @@ esp_err_t um_automations_remove_rule(uint32_t id)
     {
         s_rules[i] = s_rules[i + 1];
         s_rule_state[i] = s_rule_state[i + 1];
+        s_rule_last_value[i] = s_rule_last_value[i + 1];
+        s_rule_has_value[i] = s_rule_has_value[i + 1];
     }
     s_rule_count--;
 
@@ -868,8 +876,42 @@ esp_err_t um_automations_update_rule(uint32_t id, cJSON *rule_json)
     }
 
     s_rules[idx] = new_rule;
-    s_rule_state[idx] = false;
     ESP_LOGI(TAG, "Updated rule ID=%d", id);
+
+    if (s_rule_has_value[idx])
+    {
+        // Пересчитываем состояние по последнему значению датчика и новым порогам
+        bool new_state = evaluate_condition(
+            new_rule.op, s_rule_last_value[idx],
+            new_rule.value, new_rule.hysteresis, true);
+        s_rule_state[idx] = new_state;
+        ESP_LOGI(TAG, "Rule %d: recalculated state=%d (last value=%.2f, th=%.2f, hyst=%.2f)",
+                 id, new_state, s_rule_last_value[idx],
+                 new_rule.value, new_rule.hysteresis);
+
+        if (new_state)
+        {
+            for (int j = 0; j < new_rule.then_count; j++)
+            {
+                execute_action(new_rule.then_actions[j].cap,
+                               new_rule.then_actions[j].subtype,
+                               new_rule.then_actions[j].action);
+            }
+        }
+        else if (new_rule.else_count > 0)
+        {
+            for (int j = 0; j < new_rule.else_count; j++)
+            {
+                execute_action(new_rule.else_actions[j].cap,
+                               new_rule.else_actions[j].subtype,
+                               new_rule.else_actions[j].action);
+            }
+        }
+    }
+    else
+    {
+        s_rule_state[idx] = false;
+    }
 
     return um_automations_save();
 }
