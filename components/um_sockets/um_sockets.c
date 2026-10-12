@@ -154,7 +154,7 @@ esp_err_t um_sockets_send_syslog(const char *tag, const char *json_data)
         return ESP_ERR_NO_MEM;
     }
 
-    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(UM_SOCKETS_PORT)};
+    struct sockaddr_in addr = {.sin_family = AF_INET, .sin_port = htons(socket_port)};
 
     // 2. Рассылка по найденным серверам или Broadcast
     if (discovered_count == 0)

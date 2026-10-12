@@ -268,7 +268,11 @@ void um_main_connected_handler(void *arg, esp_event_base_t base, int32_t id, voi
         {
             socket_port = UM_NVS_DEFAULT_SOCKET_PORT;
         }
-        um_sockets_init(socket_port);
+        sock_res = um_sockets_init(socket_port);
+        if (sock_res == ESP_OK)
+        {
+            ESP_LOGI(TAG, "Syslog started on %d", socket_port);
+        }
 
 #if UM_FEATURE_ENABLED(MQTT)
         um_mqtt_init(hostname != NULL ? hostname : "umni-unknown");
