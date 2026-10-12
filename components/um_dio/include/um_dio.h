@@ -88,6 +88,13 @@ extern "C"
     esp_err_t um_dio_set_all_outputs(uint8_t states);
 
     /**
+     * @brief Set all outputs off
+     *
+     * @return esp_err_t ESP_OK on success, error code otherwise
+     */
+    esp_err_t um_dio_off_no_nvs();
+
+    /**
      * @brief Get all outputs as bitmask
      *
      * @param[out] states Bitmask of all outputs

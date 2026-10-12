@@ -666,6 +666,17 @@ esp_err_t um_dio_set_all_outputs(uint8_t states)
 #endif
 }
 
+esp_err_t um_dio_off_no_nvs()
+{
+#if UM_FEATURE_ENABLED(OUTPUTS)
+    esp_err_t res = pcf8574_port_write(&pcf8574_output_dev, 0xFF);
+    return res;
+#else
+    ESP_LOGE(TAG, "Outputs feature not enabled");
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
 esp_err_t um_dio_get_all_outputs(uint8_t *states)
 {
 #if UM_FEATURE_ENABLED(OUTPUTS)
