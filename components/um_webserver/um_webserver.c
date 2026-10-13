@@ -112,6 +112,15 @@ static const char *TEST_HTML =
 // Проверка авторизации
 static bool check_auth(httpd_req_t *req)
 {
+    // Режим конфигурации (перемычка установлена): аварийный обход токена
+    bool config_state = false;
+    um_dio_get_config_state(&config_state);
+    if (!config_state)
+    {
+        ESP_LOGW(REST_TAG, "CONFIG MODE: token auth bypassed");
+        return true;
+    }
+
     // Получаем токен из заголовка
     char token[128] = {0};
     httpd_req_get_hdr_value_str(req, "Authorization", token, sizeof(token));
@@ -1570,10 +1579,10 @@ static esp_err_t um_webserver_configuration_handler(httpd_req_t *req, cJSON *inp
     if (change_token)
     {
         cJSON *token = cJSON_GetObjectItem(input, "token");
-        if (cJSON_IsString(token) && strlen(token->valuestring) > 0)
+        if (cJSON_IsString(token) && strlen(token->valuestring) > 10)
         {
             um_nvs_write_str(UM_NVS_KEY_WEBSERVER_TOKEN, token->valuestring);
-            ESP_LOGI(REST_TAG, "Webserver token saved");
+            ESP_LOGI(REST_TAG, "Webserver token %s saved", token->valuestring);
         }
         else
         {
