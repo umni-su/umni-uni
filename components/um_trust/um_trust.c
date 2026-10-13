@@ -536,17 +536,42 @@ static int b32_decode(const char *in, uint8_t *out, size_t out_max)
     return (int)o;
 }
 
+/* Сохранить метаданные уже известного peer'а (права, имя, кэш адреса) */
+static void preserve_existing_meta(um_trust_peer_t *p)
+{
+    const um_trust_peer_t *old = um_trust_get(p->id);
+    if (!old)
+        return;
+    strlcpy(p->name, old->name, sizeof(p->name));
+    memcpy(p->perms, old->perms, sizeof(p->perms));
+    p->perms_count = old->perms_count;
+    strlcpy(p->last_ip, old->last_ip, sizeof(p->last_ip));
+    p->last_port = old->last_port;
+    p->last_seen_ms = old->last_seen_ms;
+    p->created_at_ms = old->created_at_ms;
+}
+
 esp_err_t um_trust_pair_generate(char *out_str, size_t out_len)
 {
     if (!out_str || out_len < 80)
         return ESP_ERR_INVALID_ARG;
     int slot = -1;
+    int64_t now = now_ms();
     for (int i = 0; i < PAIR_SLOTS; i++)
+    {
         if (!s_pairs[i].used)
         {
             slot = i;
             break;
         }
+        /* Освобождаем слот, если срок действия кода истёк */
+        if (s_pairs[i].expires_ms <= now)
+        {
+            s_pairs[i].used = false;
+            slot = i;
+            break;
+        }
+    }
     if (slot < 0)
         return ESP_ERR_NO_MEM;
 
@@ -582,10 +607,12 @@ esp_err_t um_trust_pair_consume(const char *pair_str,
 
     um_trust_peer_t p = {0};
     strlcpy(p.id, pair_str, id_len + 1);
+    if (s_self_id[0] && !strcmp(p.id, s_self_id))
+        return ESP_ERR_INVALID_ARG; /* нельзя сопрягаться с самим собой */
     strlcpy(p.name, p.id, sizeof(p.name));
     memcpy(p.secret, secret, sizeof(secret));
-    p.perms_count = 0;
     p.created_at_ms = now_ms();
+    preserve_existing_meta(&p);
 
     if (out_peer_id && out_peer_id_len)
         strlcpy(out_peer_id, p.id, out_peer_id_len);
@@ -897,6 +924,9 @@ esp_err_t um_trust_pair_confirm(httpd_req_t *req,
     if (hex_to_bin(sig_s, given, sizeof(given)) != (int)sizeof(given))
         return ESP_ERR_INVALID_ARG;
 
+    uint8_t matched[UM_TRUST_SECRET_LEN];
+    bool found = false;
+
     for (int i = 0; i < PAIR_SLOTS; i++)
     {
         if (s_pairs[i].used || s_pairs[i].expires_ms <= now)
@@ -909,30 +939,39 @@ esp_err_t um_trust_pair_confirm(httpd_req_t *req,
         if (mbedtls_ct_memcmp(mac, given, 32) != 0)
             continue;
 
-        /* Секрет совпал — одноразовый, помечаем использованным и регистрируем peer */
-        s_pairs[i].used = true;
-
-        um_trust_peer_t p = {0};
-        strlcpy(p.id, dev, sizeof(p.id));
-        strlcpy(p.name, dev, sizeof(p.name));
-        memcpy(p.secret, s_pairs[i].secret, UM_TRUST_SECRET_LEN);
-        p.perms_count = 0;
-        p.last_seen_ms = now;
-        p.created_at_ms = now;
-
-        if (um_trust_add_or_update(&p) != ESP_OK)
-            return ESP_FAIL;
-
-        if (ctx)
-        {
-            ctx->kind = UM_AUTH_PEER;
-            strlcpy(ctx->peer_id, dev, sizeof(ctx->peer_id));
-        }
-        ESP_LOGI(TAG, "Paired: registered peer %s", dev);
-        return ESP_OK;
+        /* Секрет совпал — одноразовый: забираем его и освобождаем слот,
+           чтобы он не «протёк» и мог быть переиспользован для нового кода */
+        memcpy(matched, s_pairs[i].secret, UM_TRUST_SECRET_LEN);
+        s_pairs[i].used = false;
+        s_pairs[i].expires_ms = 0;
+        found = true;
+        break;
     }
 
-    return ESP_ERR_NOT_FOUND;
+    if (!found)
+        return ESP_ERR_NOT_FOUND;
+
+    if (s_self_id[0] && !strcmp(dev, s_self_id))
+        return ESP_ERR_INVALID_ARG; /* нельзя сопрягаться с самим собой */
+
+    um_trust_peer_t p = {0};
+    strlcpy(p.id, dev, sizeof(p.id));
+    strlcpy(p.name, dev, sizeof(p.name));
+    memcpy(p.secret, matched, UM_TRUST_SECRET_LEN);
+    p.last_seen_ms = now;
+    p.created_at_ms = now;
+    preserve_existing_meta(&p);
+
+    if (um_trust_add_or_update(&p) != ESP_OK)
+        return ESP_FAIL;
+
+    if (ctx)
+    {
+        ctx->kind = UM_AUTH_PEER;
+        strlcpy(ctx->peer_id, dev, sizeof(ctx->peer_id));
+    }
+    ESP_LOGI(TAG, "Paired: registered peer %s", dev);
+    return ESP_OK;
 }
 
 /* =====================================================================
