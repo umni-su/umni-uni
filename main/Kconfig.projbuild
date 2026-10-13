@@ -59,6 +59,12 @@ menu "UMNI Configuration"
             help
                 Enable MQTT Client
 
+        config UM_FEATURE_TRUST
+            bool "Enable Trusted Management"
+            default n
+            help
+                Enable peer-to-peer trusted device management (pairing, HMAC-signed API, remote capability control)
+
         config UM_FEATURE_OPENTHERM
             bool "Enable OpenTherm"
             default n

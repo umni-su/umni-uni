@@ -1,0 +1,23 @@
+dependencies:
+  idf:
+    version: '>=5.5.2'
+  espressif/cjson:
+    version: "*"
+  um_nvs:
+    path: ../um_nvs
+    version: "*"
+  um_storage:
+    path: ../um_storage
+    version: "*"
+  um_sockets:
+    path: ../um_sockets
+    version: "*"
+  um_capabilities:
+    path: ../um_capabilities
+    version: "*"
+  um_helpers:
+    path: ../um_helpers
+    version: "*"
+description: UMNI trust component
+license: MIT
+version: 1.0.0

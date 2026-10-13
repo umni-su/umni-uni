@@ -44,7 +44,7 @@ dependencies:
     - esp32s3
     version: 1.4.0
   esp-idf-lib/i2cdev:
-    component_hash: 9e22a91420695242ceac2c00788820ae45826224d38ef003a1a894367c55ede4
+    component_hash: ad8981cc64533dcaced5107d72e42bcebe79345e194e82795792af531b300ce3
     dependencies:
     - name: esp-idf-lib/esp_idf_lib_helpers
       registry_url: https://components.espressif.com
@@ -64,7 +64,7 @@ dependencies:
     - esp32p4
     - esp32s2
     - esp32s3
-    version: 2.1.1
+    version: 2.1.2
   esp-idf-lib/onewire:
     component_hash: d98263e9ab1206caf9bd255652cfd1e7d43524de58a32bc17afe43a425c1674e
     dependencies:
@@ -294,7 +294,7 @@ dependencies:
       type: idf
     version: 6.0.0
   sazanof/opentherm:
-    component_hash: d9a8bd377796247baba62803c8f09d0cab8d0b9cd11c816b0f948aa19cf13cc1
+    component_hash: 83e3f1156b9902b026ad3b372fc6913530cb313e83b9b2d175b369737e9aa105
     dependencies:
     - name: idf
       require: private
@@ -302,7 +302,7 @@ dependencies:
     source:
       registry_url: https://components.espressif.com/
       type: service
-    version: 1.0.9
+    version: 1.1.0
   sazanof/rf433_receiver:
     component_hash: ac8cd9fef37aaaf638fc30fa41edcfc8c815e5fa50ead2b08ddaf38f12b78ed2
     dependencies:
@@ -409,6 +409,12 @@ dependencies:
       path: components\um_sd
       type: local
     version: 1.0.0
+  um_sockets:
+    dependencies: []
+    source:
+      path: components\um_sockets
+      type: local
+    version: 1.0.0
   um_sse_server:
     dependencies: []
     source:
@@ -425,6 +431,12 @@ dependencies:
     dependencies: []
     source:
       path: components\um_store
+      type: local
+    version: 1.0.0
+  um_trust:
+    dependencies: []
+    source:
+      path: components\um_trust
       type: local
     version: 1.0.0
   um_wifi:
@@ -461,10 +473,12 @@ direct_dependencies:
 - um_opentherm
 - um_rf433
 - um_sd
+- um_sockets
 - um_sse_server
 - um_storage
 - um_store
+- um_trust
 - um_wifi
-manifest_hash: 7a8e6aa2386288e22eece80af0ce7e3f69f0407abefdb3152c0a9bf0f10048f0
+manifest_hash: 9ebeb55fdc6e202df20650644e2939c6ef349a7d091a3bf5148c4869aaf29149
 target: esp32
 version: 3.0.0

@@ -71,6 +71,10 @@
 #include "um_mqtt.h"
 #endif
 
+#if UM_FEATURE_ENABLED(TRUST)
+#include "um_trust.h"
+#endif
+
 static const char *TAG = "main";
 
 static bool has_connection = false;
@@ -525,6 +529,10 @@ void app_main(void)
     um_nvs_init();
     um_storage_init("/spiffs", NULL, 5, true);
     um_nvs_get_hostname(&hostname);
+
+#if UM_FEATURE_ENABLED(TRUST)
+    um_trust_init();
+#endif
 
     um_automations_init();
 

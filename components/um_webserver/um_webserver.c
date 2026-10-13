@@ -61,6 +61,10 @@
 #define WEBSERVER_TAG "um_webserver"
 #define OTA_TAG "um_webserver_ota"
 
+#if UM_FEATURE_ENABLED(TRUST)
+#include "um_trust.h"
+#endif
+
 #define OTA_BUFFER_SIZE 8192
 #define OTA_MAX_FILE_SIZE (5 * 1024 * 1024)
 
@@ -147,37 +151,117 @@ static bool check_auth(httpd_req_t *req)
     return valid;
 }
 
+static esp_err_t send_unauthorized(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "401 Unauthorized");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Unauthorized\"}");
+    return ESP_FAIL;
+}
+
+static esp_err_t send_forbidden(httpd_req_t *req)
+{
+    httpd_resp_set_status(req, "403 Forbidden");
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Forbidden\"}");
+    return ESP_FAIL;
+}
+
+static esp_err_t base_post_handler_from(httpd_req_t *req,
+                                        esp_err_t (*process_data)(httpd_req_t *, cJSON *, cJSON **),
+                                        char *prefetched, size_t prefetched_len);
+
 static esp_err_t get_wrapper(httpd_req_t *req)
 {
-    if (strcmp(req->uri, "/api/login") != 0)
+    um_auth_ctx_t actx = {.kind = UM_AUTH_NONE};
+    bool local = (strcmp(req->uri, "/api/login") == 0) || check_auth(req);
+    if (local)
+        actx.kind = UM_AUTH_LOCAL;
+
+#if UM_FEATURE_ENABLED(TRUST)
+    if (!local)
     {
-        if (!check_auth(req))
+        const uint8_t empty_body[1] = {0};
+        if (um_trust_verify_body(req, empty_body, 0, &actx) == ESP_OK)
         {
-            httpd_resp_set_status(req, "401 Unauthorized");
-            httpd_resp_set_type(req, "application/json");
-            httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Unauthorized\"}");
-            return ESP_FAIL;
+            if (!um_trust_enforce(&actx, req, NULL))
+                return send_forbidden(req);
+            local = true;
         }
     }
+#endif
+
+    if (!local)
+        return send_unauthorized(req);
+
     get_ctx_t *ctx = (get_ctx_t *)req->user_ctx;
     return um_webserver_base_get_handler(req, ctx->get_data);
 }
 
 esp_err_t post_wrapper(httpd_req_t *req)
 {
-    if (strcmp(req->uri, "/api/login") != 0)
+    um_auth_ctx_t actx = {.kind = UM_AUTH_NONE};
+    bool local = (strcmp(req->uri, "/api/login") == 0) || check_auth(req);
+    if (local)
+        actx.kind = UM_AUTH_LOCAL;
+
+#if UM_FEATURE_ENABLED(TRUST)
+    if (!local)
     {
-        if (!check_auth(req))
+        if (req->content_len == 0 || req->content_len > 2048)
+            return send_unauthorized(req);
+
+        bool is_confirm = (strcmp(req->uri, "/api/trust/confirm") == 0);
+        bool is_peer = is_confirm || httpd_req_get_hdr_value_len(req, "X-UMNI-Device") > 0;
+        if (!is_peer)
+            return send_unauthorized(req);
+
+        char *buf = malloc(req->content_len + 1);
+        if (!buf)
+            return send_unauthorized(req);
+
+        int rd = httpd_req_recv(req, buf, req->content_len);
+        if (rd <= 0)
         {
-            httpd_resp_set_status(req, "401 Unauthorized");
-            httpd_resp_set_type(req, "application/json");
-            httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Unauthorized\"}");
-            return ESP_FAIL;
+            free(buf);
+            return send_unauthorized(req);
         }
+        buf[rd] = '\0';
+
+        esp_err_t res = is_confirm
+                            ? um_trust_pair_confirm(req, (const uint8_t *)buf, (size_t)rd, &actx)
+                            : um_trust_verify_body(req, (const uint8_t *)buf, (size_t)rd, &actx);
+
+        if (res != ESP_OK)
+        {
+            free(buf);
+            return send_unauthorized(req);
+        }
+
+        if (!is_confirm)
+        {
+            cJSON *input = cJSON_Parse(buf);
+            bool ok = um_trust_enforce(&actx, req, input);
+            cJSON_Delete(input);
+            if (!ok)
+            {
+                free(buf);
+                return send_forbidden(req);
+            }
+        }
+
+        post_ctx_t *pc = (post_ctx_t *)req->user_ctx;
+        esp_err_t r = base_post_handler_from(req, pc->process_data, buf, (size_t)rd);
+        free(buf);
+        return r;
     }
+#endif
+
+    if (!local)
+        return send_unauthorized(req);
 
     post_ctx_t *ctx = (post_ctx_t *)req->user_ctx;
-    return um_webserver_base_post_handler(req, ctx->process_data);
+    return base_post_handler_from(req, ctx->process_data, NULL, 0);
 }
 
 /**
@@ -237,7 +321,7 @@ esp_err_t um_webserver_base_get_handler(
     }
 
     cJSON_Delete(root);
-    ESP_LOGW(REST_TAG, "Free heap size before: %ld", esp_get_free_heap_size());
+    ESP_LOGI(REST_TAG, "URI %s, heap before: %ld", req->uri, esp_get_free_heap_size());
     return http_ret;
 }
 
@@ -342,45 +426,52 @@ esp_err_t um_webserver_register_delete(const char *uri, esp_err_t (*data_func)(h
  * @param req HTTP запрос
  * @param process_data функция, которая обрабатывает входные данные и создает выходные
  */
-esp_err_t um_webserver_base_post_handler(
+static esp_err_t base_post_handler_from(
     httpd_req_t *req,
-    esp_err_t (*process_data)(httpd_req_t *, cJSON *input, cJSON **output))
+    esp_err_t (*process_data)(httpd_req_t *, cJSON *input, cJSON **output),
+    char *prefetched, size_t prefetched_len)
 {
+    (void)prefetched_len;
     httpd_resp_set_type(req, "application/json");
 
-    // 1. Читаем тело запроса (то, что прислал клиент)
-    if (req->content_len == 0)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty request");
-        return ESP_FAIL;
-    }
-
-    // Ограничим размер для безопасности
-    if (req->content_len > 2048)
-    {
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Request too large");
-        return ESP_FAIL;
-    }
-
-    char *content = malloc(req->content_len + 1);
+    // 1. Читаем тело запроса (то, что прислал клиент), если не передано заранее
+    char *content = prefetched;
     if (!content)
     {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
-        return ESP_FAIL;
-    }
+        if (req->content_len == 0)
+        {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Empty request");
+            return ESP_FAIL;
+        }
 
-    int received = httpd_req_recv(req, content, req->content_len);
-    if (received <= 0)
-    {
-        free(content);
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to read data");
-        return ESP_FAIL;
+        // Ограничим размер для безопасности
+        if (req->content_len > 2048)
+        {
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Request too large");
+            return ESP_FAIL;
+        }
+
+        content = malloc(req->content_len + 1);
+        if (!content)
+        {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No memory");
+            return ESP_FAIL;
+        }
+
+        int received = httpd_req_recv(req, content, req->content_len);
+        if (received <= 0)
+        {
+            free(content);
+            httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Failed to read data");
+            return ESP_FAIL;
+        }
+        content[received] = '\0';
     }
-    content[received] = '\0';
 
     // 2. Парсим входной JSON
     cJSON *input = cJSON_Parse(content);
-    free(content);
+    if (!prefetched)
+        free(content);
 
     if (!input)
     {
@@ -447,9 +538,16 @@ esp_err_t um_webserver_base_post_handler(
     cJSON_Delete(root);
     cJSON_Delete(input);
 
-    ESP_LOGW(REST_TAG, "Free heap size before: %ld", esp_get_free_heap_size());
+    ESP_LOGI(REST_TAG, "URI %s, heap before: %ld", req->uri, esp_get_free_heap_size());
 
     return http_ret;
+}
+
+esp_err_t um_webserver_base_post_handler(
+    httpd_req_t *req,
+    esp_err_t (*process_data)(httpd_req_t *, cJSON *input, cJSON **output))
+{
+    return base_post_handler_from(req, process_data, NULL, 0);
 }
 
 static esp_err_t get_systeminfo(httpd_req_t *req, cJSON **data)
@@ -2232,6 +2330,9 @@ esp_err_t um_webserver_start(void)
 
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 20;
+#if UM_FEATURE_ENABLED(TRUST)
+    config.max_uri_handlers += 10;
+#endif
     config.stack_size = 8192;
     config.max_open_sockets = CONFIG_LWIP_MAX_SOCKETS - 3; // Максимум открытых сокетов (по умолчанию CONFIG_LWIP_MAX_SOCKETS)
     config.lru_purge_enable = true;                        // Включить LRU очистку старых соединений
@@ -2265,6 +2366,17 @@ esp_err_t um_webserver_start(void)
     um_webserver_register_post("/api/automations", um_webserver_post_automations);
     um_webserver_register_put("/api/automations/*", um_webserver_put_automations);
     um_webserver_register_delete("/api/automations/*", um_webserver_delete_automations);
+
+#if UM_FEATURE_ENABLED(TRUST)
+    um_webserver_register_get("/api/trust/pairs", um_trust_ws_pairs_list);
+    um_webserver_register_post("/api/trust/pair/generate", um_trust_ws_pair_generate);
+    um_webserver_register_post("/api/trust/pair/consume", um_trust_ws_pair_consume);
+    um_webserver_register_post("/api/trust/confirm", um_trust_ws_pair_confirm);
+    um_webserver_register_delete("/api/trust/peer", um_trust_ws_peer_delete);
+    um_webserver_register_put("/api/trust/peer", um_trust_ws_peer_update);
+    um_webserver_register_post("/api/trust/peer/state", um_trust_ws_peer_state);
+    um_webserver_register_post("/api/trust/peer/switch", um_trust_ws_peer_switch);
+#endif
 
     um_sse_server_init(server, "/sse/events");
 

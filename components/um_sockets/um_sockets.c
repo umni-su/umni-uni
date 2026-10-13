@@ -65,6 +65,55 @@ esp_err_t um_sockets_reload_discovery(void)
     return ESP_OK;
 }
 
+esp_err_t um_sockets_resolve(const char *device_id,
+                             char *ip_out, size_t ip_len,
+                             uint16_t *port_out)
+{
+    if (!device_id || !ip_out || ip_len < 8)
+        return ESP_ERR_INVALID_ARG;
+
+    if (!um_helpers_mdns_running())
+        return ESP_ERR_INVALID_STATE;
+
+    mdns_result_t *results = NULL;
+    esp_err_t err = mdns_query_ptr(UM_SOCKETS_MDNS_SERVICE, UM_SOCKETS_MDNS_PROTO,
+                                   2000, MAX_REMOTE_SERVERS, &results);
+    if (err != ESP_OK || !results)
+        return ESP_ERR_NOT_FOUND;
+
+    esp_err_t found = ESP_ERR_NOT_FOUND;
+    for (mdns_result_t *r = results; r && found != ESP_OK; r = r->next)
+    {
+        bool match = false;
+        for (size_t i = 0; i < r->txt_count; i++)
+        {
+            const char *k = r->txt[i].key;
+            const char *v = r->txt[i].value;
+            if (!k || !v)
+                continue;
+            if ((!strcmp(k, "id") || !strcmp(k, "unique_id") || !strcmp(k, "hostname")) &&
+                !strcmp(v, device_id))
+            {
+                match = true;
+                break;
+            }
+        }
+        if (!match && r->instance_name && !strcmp(r->instance_name, device_id))
+            match = true;
+
+        if (!match || !r->addr)
+            continue;
+
+        esp_ip4addr_ntoa(&(r->addr->addr.u_addr.ip4), ip_out, ip_len);
+        if (port_out)
+            *port_out = r->port ? r->port : 80;
+        found = ESP_OK;
+    }
+
+    mdns_query_results_free(results);
+    return found;
+}
+
 static void discovery_timer_cb(TimerHandle_t xTimer)
 {
     if (um_helpers_mdns_running())
