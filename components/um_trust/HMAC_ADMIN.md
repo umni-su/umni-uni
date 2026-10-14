@@ -82,3 +82,25 @@ def sign_ota(token: str, uri: str, firmware: bytes):
 ```
 
 Для GET тело пустое: `sign(token, "GET", "/api/configuration")`.
+
+## Готовый REST-клиент
+
+Полный запускаемый пример: [`examples/rest_client.py`](examples/rest_client.py)
+(только стандартная библиотека Python).
+
+```
+set UMNI_TOKEN=Sa27za11NOV
+
+python rest_client.py GET  /api/systeminfo
+python rest_client.py GET  /api/conf --query section=adc
+python rest_client.py POST /api/switch --json "{\"mode\":\"outputs\",\"index\":0,\"level\":1}"
+python rest_client.py POST /api/ota/update --ota build/umni-uni.bin
+```
+
+Ключевые моменты:
+* подписывается **тот же** путь, что уходит на устройство, включая query
+  (`/api/conf?section=adc`);
+* для POST/PUT подписываются **реальные байты** тела (JSON сериализуется
+  один раз и отправляется этими же байтами);
+* для OTA хэш прошивки идёт и в канон, и в заголовок `X-UMNI-Body-SHA256`;
+* если HMAC на устройстве недоступен — флаг `--bearer` переключает на Bearer.
