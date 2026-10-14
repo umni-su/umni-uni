@@ -25,6 +25,11 @@ extern "C"
 #define UM_TRUST_CONFIG_PATH "/spiffs/trust.json"
 #define UM_TRUST_CONFIG_VERSION 1
 
+/* Зарезервированный идентификатор администратора в X-UMNI-Device.
+ * HMAC-ключом служит webserver-токен из NVS; при успехе даётся UM_AUTH_LOCAL. */
+#define UM_TRUST_ADMIN_ID "admin"
+#define UM_TRUST_BODY_HASH_HDR "X-UMNI-Body-SHA256"
+
     typedef struct
     {
         char id[UM_TRUST_ID_MAX];
@@ -99,6 +104,22 @@ extern "C"
     esp_err_t um_trust_verify_body(httpd_req_t *req,
                                    const uint8_t *body, size_t body_len,
                                    um_auth_ctx_t *ctx);
+
+    /**
+     * @brief Проверить admin-HMAC для потоковых запросов (OTA).
+     *
+     * Тело нельзя прочитать до проверки, поэтому клиент обязан прислать
+     * SHA256 тела в заголовке @ref UM_TRUST_BODY_HASH_HDR. Подпись
+     * проверяется по этому хэшу; вызывающая сторона затем обязана убедиться,
+     * что реальный поток даёт тот же хэш (out_expected_hash).
+     *
+     * @param req HTTP-запрос (X-UMNI-* + X-UMNI-Body-SHA256)
+     * @param[out] ctx Контекст авторизации (kind=LOCAL при успехе)
+     * @param[out] out_expected_hash Ожидаемый SHA256 тела (32 байта)
+     * @return ESP_OK при успешной проверке
+     */
+    esp_err_t um_trust_verify_stream(httpd_req_t *req, um_auth_ctx_t *ctx,
+                                     uint8_t out_expected_hash[32]);
 
     /* === Enforcement === */
     bool um_trust_enforce(const um_auth_ctx_t *ctx, httpd_req_t *req, cJSON *input);

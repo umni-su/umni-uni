@@ -8,6 +8,7 @@
 #include "um_storage.h"
 #include "um_capabilities.h"
 #include "um_sockets.h"
+#include "um_nvs.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -284,6 +285,42 @@ static esp_err_t hmac_sha256(const uint8_t *key, size_t key_len,
     return mbedtls_md_hmac(md, key, key_len, data, data_len, out) == 0 ? ESP_OK : ESP_FAIL;
 }
 
+static void body_sha256_hex(const uint8_t *body, size_t body_len, char out_hex[65])
+{
+    uint8_t h[32];
+    const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    mbedtls_md(md, body, body_len, h);
+    bin_to_hex(h, 32, out_hex);
+}
+
+static esp_err_t build_canonical(httpd_req_t *req, const char *ts,
+                                 const char *nonce, const char *body_hash_hex,
+                                 char *out, size_t out_len)
+{
+    int n = snprintf(out, out_len, "UMNI1\n%s\n%s\n%s\n%s\n%s",
+                     http_method_str(req->method), req->uri,
+                     ts, nonce, body_hash_hex);
+    if (n < 0 || (size_t)n >= out_len)
+        return ESP_ERR_NO_MEM;
+    return ESP_OK;
+}
+
+static esp_err_t read_auth_headers(httpd_req_t *req, char *dev, size_t dev_len,
+                                   char *ts_s, size_t ts_len,
+                                   char *nonce_s, size_t nonce_len,
+                                   char *sig_s, size_t sig_len)
+{
+    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Device", dev, dev_len) != ESP_OK)
+        return ESP_ERR_NOT_FOUND;
+    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Timestamp", ts_s, ts_len) != ESP_OK)
+        return ESP_ERR_NOT_FOUND;
+    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Nonce", nonce_s, nonce_len) != ESP_OK)
+        return ESP_ERR_NOT_FOUND;
+    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Signature", sig_s, sig_len) != ESP_OK)
+        return ESP_ERR_NOT_FOUND;
+    return ESP_OK;
+}
+
 esp_err_t um_trust_sign(const um_trust_peer_t *peer,
                         const char *method, const char *path,
                         const uint8_t *body, size_t body_len,
@@ -336,45 +373,70 @@ esp_err_t um_trust_verify_body(httpd_req_t *req,
     char nonce_s[UM_TRUST_NONCE_LEN * 2 + 1] = {0};
     char sig_s[UM_TRUST_SIG_HEX_LEN] = {0};
 
-    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Device", dev, sizeof(dev)) != ESP_OK)
-        return ESP_ERR_NOT_FOUND;
-    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Timestamp", ts_s, sizeof(ts_s)) != ESP_OK)
-        return ESP_ERR_NOT_FOUND;
-    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Nonce", nonce_s, sizeof(nonce_s)) != ESP_OK)
-        return ESP_ERR_NOT_FOUND;
-    if (httpd_req_get_hdr_value_str(req, "X-UMNI-Signature", sig_s, sizeof(sig_s)) != ESP_OK)
+    if (read_auth_headers(req, dev, sizeof(dev), ts_s, sizeof(ts_s),
+                          nonce_s, sizeof(nonce_s), sig_s, sizeof(sig_s)) != ESP_OK)
         return ESP_ERR_NOT_FOUND;
 
-    const um_trust_peer_t *peer = um_trust_get(dev);
-    if (!peer)
-        return ESP_ERR_NOT_FOUND;
+    bool is_admin = (strcmp(dev, UM_TRUST_ADMIN_ID) == 0);
+
+    /* Определяем ключ и «личность» до проверки nonce/времени, чтобы не
+     * расходовать ring на неизвестных отправителей. */
+    char *token = NULL;
+    const um_trust_peer_t *peer = NULL;
+    if (is_admin)
+    {
+        if (um_nvs_get_webserver_token(&token) != ESP_OK || !token || token[0] == '\0')
+        {
+            free(token);
+            return ESP_ERR_NOT_FOUND;
+        }
+    }
+    else
+    {
+        peer = um_trust_get(dev);
+        if (!peer)
+            return ESP_ERR_NOT_FOUND;
+    }
 
     int64_t ts = atoll(ts_s);
     int64_t now = now_ms();
     if (llabs(now - ts) > UM_TRUST_TS_WINDOW_MS)
+    {
+        free(token);
         return ESP_ERR_INVALID_STATE;
+    }
 
     uint8_t nonce[UM_TRUST_NONCE_LEN];
     if (hex_to_bin(nonce_s, nonce, sizeof(nonce)) != (int)sizeof(nonce))
+    {
+        free(token);
         return ESP_ERR_INVALID_ARG;
+    }
     if (nonce_seen_and_add(dev, nonce, now))
+    {
+        free(token);
         return ESP_ERR_INVALID_STATE; // replay
+    }
 
-    uint8_t body_hash[32];
-    const mbedtls_md_info_t *md = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    mbedtls_md(md, body, body_len, body_hash);
     char body_hash_hex[65];
-    bin_to_hex(body_hash, 32, body_hash_hex);
+    body_sha256_hex(body, body_len, body_hash_hex);
 
     char canonical[768];
-    snprintf(canonical, sizeof(canonical),
-             "UMNI1\n%s\n%s\n%s\n%s\n%s",
-             http_method_str(req->method), req->uri,
-             ts_s, nonce_s, body_hash_hex);
+    if (build_canonical(req, ts_s, nonce_s, body_hash_hex,
+                        canonical, sizeof(canonical)) != ESP_OK)
+    {
+        free(token);
+        return ESP_FAIL;
+    }
+
+    const uint8_t *key = is_admin ? (const uint8_t *)token : peer->secret;
+    size_t key_len = is_admin ? strlen(token) : UM_TRUST_SECRET_LEN;
 
     uint8_t mac[32];
-    if (hmac_sha256(peer->secret, UM_TRUST_SECRET_LEN,
-                    (const uint8_t *)canonical, strlen(canonical), mac) != ESP_OK)
+    esp_err_t e = hmac_sha256(key, key_len,
+                              (const uint8_t *)canonical, strlen(canonical), mac);
+    free(token);
+    if (e != ESP_OK)
         return ESP_FAIL;
 
     uint8_t given[32];
@@ -383,8 +445,91 @@ esp_err_t um_trust_verify_body(httpd_req_t *req,
     if (mbedtls_ct_memcmp(mac, given, 32) != 0)
         return ESP_ERR_INVALID_STATE;
 
-    ctx->kind = UM_AUTH_PEER;
-    strlcpy(ctx->peer_id, dev, sizeof(ctx->peer_id));
+    if (is_admin)
+    {
+        ctx->kind = UM_AUTH_LOCAL;
+    }
+    else
+    {
+        ctx->kind = UM_AUTH_PEER;
+        strlcpy(ctx->peer_id, dev, sizeof(ctx->peer_id));
+    }
+    return ESP_OK;
+}
+
+esp_err_t um_trust_verify_stream(httpd_req_t *req, um_auth_ctx_t *ctx,
+                                 uint8_t out_expected_hash[32])
+{
+    ctx->kind = UM_AUTH_NONE;
+    if (!out_expected_hash)
+        return ESP_ERR_INVALID_ARG;
+
+    char dev[UM_TRUST_ID_MAX] = {0};
+    char ts_s[24] = {0};
+    char nonce_s[UM_TRUST_NONCE_LEN * 2 + 1] = {0};
+    char sig_s[UM_TRUST_SIG_HEX_LEN] = {0};
+    char hash_hex[65] = {0};
+
+    if (read_auth_headers(req, dev, sizeof(dev), ts_s, sizeof(ts_s),
+                          nonce_s, sizeof(nonce_s), sig_s, sizeof(sig_s)) != ESP_OK)
+        return ESP_ERR_NOT_FOUND;
+    if (strcmp(dev, UM_TRUST_ADMIN_ID) != 0)
+        return ESP_ERR_NOT_FOUND;
+    if (httpd_req_get_hdr_value_str(req, UM_TRUST_BODY_HASH_HDR,
+                                    hash_hex, sizeof(hash_hex)) != ESP_OK)
+        return ESP_ERR_NOT_FOUND;
+    if (hex_to_bin(hash_hex, out_expected_hash, 32) != 32)
+        return ESP_ERR_INVALID_ARG;
+
+    char *token = NULL;
+    if (um_nvs_get_webserver_token(&token) != ESP_OK || !token || token[0] == '\0')
+    {
+        free(token);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    int64_t ts = atoll(ts_s);
+    int64_t now = now_ms();
+    if (llabs(now - ts) > UM_TRUST_TS_WINDOW_MS)
+    {
+        free(token);
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    uint8_t nonce[UM_TRUST_NONCE_LEN];
+    if (hex_to_bin(nonce_s, nonce, sizeof(nonce)) != (int)sizeof(nonce))
+    {
+        free(token);
+        return ESP_ERR_INVALID_ARG;
+    }
+    if (nonce_seen_and_add(dev, nonce, now))
+    {
+        free(token);
+        return ESP_ERR_INVALID_STATE; // replay
+    }
+
+    char canonical[768];
+    if (build_canonical(req, ts_s, nonce_s, hash_hex,
+                        canonical, sizeof(canonical)) != ESP_OK)
+    {
+        free(token);
+        return ESP_FAIL;
+    }
+
+    uint8_t mac[32];
+    esp_err_t e = hmac_sha256((const uint8_t *)token, strlen(token),
+                              (const uint8_t *)canonical, strlen(canonical), mac);
+    free(token);
+    if (e != ESP_OK)
+        return ESP_FAIL;
+
+    uint8_t given[32];
+    if (hex_to_bin(sig_s, given, sizeof(given)) != (int)sizeof(given))
+        return ESP_ERR_INVALID_ARG;
+    if (mbedtls_ct_memcmp(mac, given, 32) != 0)
+        return ESP_ERR_INVALID_STATE;
+
+    ctx->kind = UM_AUTH_LOCAL;
     return ESP_OK;
 }
 
@@ -644,6 +789,8 @@ esp_err_t um_trust_add_or_update(const um_trust_peer_t *peer)
 {
     if (!peer || !peer->id[0])
         return ESP_ERR_INVALID_ARG;
+    if (strcmp(peer->id, UM_TRUST_ADMIN_ID) == 0)
+        return ESP_ERR_INVALID_ARG; /* зарезервировано за администратором */
     if (xSemaphoreTake(s_lock, portMAX_DELAY) != pdTRUE)
         return ESP_FAIL;
 

@@ -7,6 +7,8 @@
 #include "esp_ota_ops.h"
 #include "esp_partition.h"
 #include "esp_image_format.h"
+#include "mbedtls/md.h"
+#include "mbedtls/constant_time.h"
 
 #include "base_config.h"
 #include "um_nvs.h"
@@ -2030,7 +2032,7 @@ static esp_err_t um_webserver_get_wifi_networks(httpd_req_t *req, cJSON **output
  * Принимает бинарный файл прошивки и выполняет OTA обновление
  * НЕ использует um_webserver_base_post_handler, т.к. работает с бинарными данными
  */
-static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
+static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req, const uint8_t *expected_hash)
 {
     esp_err_t err = ESP_OK;
     esp_ota_handle_t ota_handle = 0;
@@ -2095,6 +2097,15 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
         return ESP_FAIL;
     }
 
+    mbedtls_md_context_t md_ctx;
+    mbedtls_md_init(&md_ctx);
+    const mbedtls_md_info_t *md_info = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
+    bool md_started = false;
+    if (expected_hash &&
+        mbedtls_md_setup(&md_ctx, md_info, 0) == 0 &&
+        mbedtls_md_starts(&md_ctx) == 0)
+        md_started = true;
+
     // Принимаем данные чанками и записываем в OTA
     while (total_received < req->content_len)
     {
@@ -2114,6 +2125,7 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
             }
             esp_ota_abort(ota_handle);
             free(ota_buffer);
+            mbedtls_md_free(&md_ctx);
             httpd_resp_set_status(req, "500 Internal Server Error");
             httpd_resp_set_type(req, "application/json");
             httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to receive data\"}");
@@ -2126,11 +2138,15 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
             ESP_LOGE(OTA_TAG, "esp_ota_write failed: %s", esp_err_to_name(err));
             esp_ota_abort(ota_handle);
             free(ota_buffer);
+            mbedtls_md_free(&md_ctx);
             httpd_resp_set_status(req, "500 Internal Server Error");
             httpd_resp_set_type(req, "application/json");
             httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to write OTA data\"}");
             return ESP_FAIL;
         }
+
+        if (md_started)
+            mbedtls_md_update(&md_ctx, ota_buffer, received);
 
         total_received += received;
 
@@ -2154,12 +2170,30 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
 
     ESP_LOGI(OTA_TAG, "OTA data received: %zu bytes", total_received);
 
+    if (md_started)
+    {
+        uint8_t computed[32];
+        mbedtls_md_finish(&md_ctx, computed);
+        if (mbedtls_ct_memcmp(computed, expected_hash, 32) != 0)
+        {
+            ESP_LOGE(OTA_TAG, "OTA body hash mismatch, aborting");
+            esp_ota_abort(ota_handle);
+            free(ota_buffer);
+            mbedtls_md_free(&md_ctx);
+            httpd_resp_set_status(req, "400 Bad Request");
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Body hash mismatch\"}");
+            return ESP_FAIL;
+        }
+    }
+
     // Завершаем OTA операцию
     err = esp_ota_end(ota_handle);
     if (err != ESP_OK)
     {
         ESP_LOGE(OTA_TAG, "esp_ota_end failed: %s", esp_err_to_name(err));
         free(ota_buffer);
+        mbedtls_md_free(&md_ctx);
         httpd_resp_set_status(req, "500 Internal Server Error");
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to finalize OTA\"}");
@@ -2172,6 +2206,7 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
     {
         ESP_LOGE(OTA_TAG, "esp_ota_set_boot_partition failed: %s", esp_err_to_name(err));
         free(ota_buffer);
+        mbedtls_md_free(&md_ctx);
         httpd_resp_set_status(req, "500 Internal Server Error");
         httpd_resp_set_type(req, "application/json");
         httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Failed to set boot partition\"}");
@@ -2179,6 +2214,7 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
     }
 
     free(ota_buffer);
+    mbedtls_md_free(&md_ctx);
 
     // Формируем успешный ответ (в стиле вашего кода)
     httpd_resp_set_status(req, "200 OK");
@@ -2221,17 +2257,35 @@ static esp_err_t um_webserver_ota_update_handler(httpd_req_t *req)
  */
 static esp_err_t ota_handler_wrapper(httpd_req_t *req)
 {
-    // Проверяем авторизацию
+    const uint8_t *expected_hash = NULL;
+    uint8_t hash_buf[32];
+
+    // Проверяем авторизацию: Bearer-токен либо admin-HMAC (с хэшем тела)
     if (!check_auth(req))
     {
-        httpd_resp_set_status(req, "401 Unauthorized");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Unauthorized\"}");
-        return ESP_FAIL;
+        bool authorized = false;
+#if UM_FEATURE_ENABLED(TRUST)
+        um_auth_ctx_t actx = {.kind = UM_AUTH_NONE};
+        if (um_trust_verify_stream(req, &actx, hash_buf) == ESP_OK &&
+            actx.kind == UM_AUTH_LOCAL)
+        {
+            expected_hash = hash_buf;
+            authorized = true;
+        }
+#else
+        (void)hash_buf;
+#endif
+        if (!authorized)
+        {
+            httpd_resp_set_status(req, "401 Unauthorized");
+            httpd_resp_set_type(req, "application/json");
+            httpd_resp_sendstr(req, "{\"success\":false,\"error\":\"Unauthorized\"}");
+            return ESP_FAIL;
+        }
     }
 
     // Вызываем OTA обработчик
-    return um_webserver_ota_update_handler(req);
+    return um_webserver_ota_update_handler(req, expected_hash);
 }
 
 /**
