@@ -852,6 +852,27 @@ esp_err_t um_trust_remove(const char *peer_id)
     return e;
 }
 
+/* Валидация строки права против списка capabilities устройства.
+ * Права um_trust используют короткие имена (out, oc, in …),
+ * um_capabilities — полные (outputs, opencollectors, inputs …).
+ * Возвращает true, если capability существует на этом устройстве. */
+static bool perm_is_valid_cap(const char *perm)
+{
+    if (!perm)
+        return false;
+    const char *cap = perm;
+    if (!strcmp(perm, "out"))       cap = "outputs";
+    else if (!strcmp(perm, "oc"))   cap = "opencollectors";
+    else if (!strcmp(perm, "in"))   cap = "inputs";
+    else if (!strcmp(perm, "adc"))  cap = "adc";
+    else if (!strcmp(perm, "ntc"))  cap = "ntc";
+    else if (!strcmp(perm, "rf433")) cap = "rf433";
+    else if (!strcmp(perm, "buzzer")) cap = "buzzer";
+    else if (!strcmp(perm, "onewire")) cap = "onewire";
+    else if (!strcmp(perm, "opentherm")) cap = "opentherm";
+    return um_capabilities_has_by_name(cap);
+}
+
 esp_err_t um_trust_set_perms(const char *peer_id, const char *const *perms, int n)
 {
     if (!peer_id)
@@ -875,6 +896,19 @@ esp_err_t um_trust_set_perms(const char *peer_id, const char *const *perms, int 
 
     if (n > UM_TRUST_PERMS_MAX)
         n = UM_TRUST_PERMS_MAX;
+
+    /* Валидируем все права против списка capabilities устройства перед записью */
+    for (int i = 0; i < n; i++)
+    {
+        if (!perms[i])
+            continue;
+        if (!perm_is_valid_cap(perms[i]))
+        {
+            xSemaphoreGive(s_lock);
+            return ESP_ERR_INVALID_ARG;
+        }
+    }
+
     s_peers[idx].perms_count = 0;
     for (int i = 0; i < n; i++)
     {
