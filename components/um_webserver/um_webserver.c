@@ -828,44 +828,120 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
                 data = cJSON_CreateArray();
                 const um_onewire_state_t *state = um_onewire_get_state();
 
+                // Собираем историю всех датчиков в один общий набор для /api/state.
+                // История хранится в store с именем серийного номера, а не "onewire",
+                // поэтому history_store по имени capability здесь всегда NULL.
+                size_t ow_total_entries = 0;
                 for (int i = 0; i < state->sensor_count; i++)
                 {
-                    cJSON *sensor = cJSON_CreateObject();
-                    cJSON_AddStringToObject(sensor, "serial", state->sensors[i].serial);
-                    cJSON_AddNumberToObject(sensor, "temp", state->sensors[i].temperature);
-                    um_store_t *ow_sensor_store = um_store_find_store(state->sensors[i].serial);
-                    if (ow_sensor_store == NULL)
+                    um_store_t *ow_store = um_store_find_store(state->sensors[i].serial);
+                    if (ow_store != NULL)
                     {
-                        cJSON_AddNullToObject(sensor, "history");
+                        ow_total_entries += ow_store->count;
                     }
-                    else
+                }
+
+                um_store_entry_t *ow_entries = ow_total_entries > 0
+                                                   ? calloc(ow_total_entries, sizeof(um_store_entry_t))
+                                                   : NULL;
+                size_t ow_offset = 0;
+
+                for (int i = 0; i < state->sensor_count; i++)
+                {
+                    const um_onewire_sensor_t *sensor = &state->sensors[i];
+                    cJSON *sensor_json = cJSON_CreateObject();
+                    cJSON_AddStringToObject(sensor_json, "serial", sensor->serial);
+                    // temp оставляем для совместимости, value — для общего фронтового кода
+                    cJSON_AddNumberToObject(sensor_json, "temp", sensor->temperature);
+                    cJSON_AddNumberToObject(sensor_json, "value", sensor->temperature);
+
+                    const um_onewire_sensor_config_t *ow_cfg = um_onewire_config_get(sensor->serial);
+                    if (ow_cfg != NULL && strlen(ow_cfg->label) > 0)
+                    {
+                        cJSON_AddStringToObject(sensor_json, "label", ow_cfg->label);
+                    }
+                    cJSON_AddBoolToObject(sensor_json, "active", sensor->active);
+                    cJSON_AddNumberToObject(sensor_json, "calibration", sensor->calibration);
+
+                    um_store_t *ow_sensor_store = um_store_find_store(sensor->serial);
+                    if (ow_sensor_store != NULL && ow_sensor_store->count > 0)
                     {
                         char *ow_sensor_history = um_store_to_json(ow_sensor_store);
-                        if (ow_sensor_history != NULL)
+                        cJSON *ow_history = ow_sensor_history != NULL ? cJSON_Parse(ow_sensor_history) : NULL;
+                        if (ow_history != NULL)
                         {
-                            cJSON *ow_history = cJSON_Parse(ow_sensor_history);
-                            cJSON_AddItemToObject(sensor, "history", ow_history);
+                            cJSON_AddItemToObject(sensor_json, "history", ow_history);
                         }
                         else
                         {
-                            cJSON_AddNullToObject(sensor, "history");
+                            cJSON_AddNullToObject(sensor_json, "history");
                         }
-                        cJSON_AddItemToArray(data, sensor);
                         free(ow_sensor_history);
+
+                        if (ow_entries != NULL)
+                        {
+                            um_store_entry_t buf[UM_STORE_MAX_SLOTS];
+                            uint8_t n = um_store_get_all(ow_sensor_store, buf, UM_STORE_MAX_SLOTS);
+                            for (uint8_t j = 0; j < n && ow_offset < ow_total_entries; j++)
+                            {
+                                ow_entries[ow_offset++] = buf[j];
+                            }
+                        }
                     }
+                    else
+                    {
+                        // um_store_to_json() вернул бы {"error":"no data"} — это не история
+                        cJSON_AddNullToObject(sensor_json, "history");
+                    }
+
+                    cJSON_AddItemToArray(data, sensor_json);
+                }
+
+                if (ow_entries != NULL && ow_offset > 0)
+                {
+                    // Сортируем по времени, чтобы график фронта не «прыгал»
+                    for (size_t i = 1; i < ow_offset; i++)
+                    {
+                        um_store_entry_t key = ow_entries[i];
+                        size_t j = i;
+                        while (j > 0 && ow_entries[j - 1].timestamp_ms > key.timestamp_ms)
+                        {
+                            ow_entries[j] = ow_entries[j - 1];
+                            j--;
+                        }
+                        ow_entries[j] = key;
+                    }
+
+                    history = cJSON_CreateObject();
+                    cJSON_AddStringToObject(history, "name", "onewire");
+                    cJSON *timestamps = cJSON_CreateArray();
+                    cJSON *values = cJSON_CreateArray();
+                    for (size_t i = 0; i < ow_offset; i++)
+                    {
+                        cJSON_AddItemToArray(timestamps, cJSON_CreateNumber((double)ow_entries[i].timestamp_ms));
+                        cJSON_AddItemToArray(values, cJSON_CreateNumber(ow_entries[i].value));
+                    }
+                    cJSON_AddItemToObject(history, "timestamps", timestamps);
+                    cJSON_AddItemToObject(history, "values", values);
+                    cJSON_AddNumberToObject(history, "count", (double)ow_offset);
+                    free(ow_entries);
                 }
             }
 
             cJSON_AddItemToObject(result, "state", data);
 
-            if (history_store != NULL)
+            if (history == NULL && history_store != NULL)
             {
                 char *json_history = um_store_to_json(history_store);
 
                 history = cJSON_Parse(json_history);
-                cJSON_AddItemToObject(result, "history", history);
 
                 free(json_history);
+            }
+
+            if (history != NULL)
+            {
+                cJSON_AddItemToObject(result, "history", history);
             }
 
             *output = result;

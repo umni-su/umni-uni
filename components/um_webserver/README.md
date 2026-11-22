@@ -595,3 +595,49 @@ json
 
 json
 {"success":false,"error":"Invalid arguments"}
+
+## Формат `/api/state` для 1-Wire
+
+Запрос:
+
+```http
+POST /api/state
+{"capability":"onewire"}
+```
+
+Ответ (фрагмент `data`):
+
+```json
+{
+  "success": true,
+  "data": {
+    "state": [
+      {
+        "serial": "6000000054760328",
+        "temp": 22.9375,
+        "value": 22.9375,
+        "label": "Sensor 6000000054760328",
+        "active": true,
+        "calibration": 0.0,
+        "history": {
+          "name": "6000000054760328",
+          "timestamps": [1795358735579],
+          "values": [22.9375],
+          "count": 1
+        }
+      }
+    ],
+    "history": {
+      "name": "onewire",
+      "timestamps": [1795358735579],
+      "values": [22.9375],
+      "count": 1
+    }
+  }
+}
+```
+
+- `state` — массив датчиков, найденных на шине при старте. Поле `value` дублирует `temp` для общего кода фронтенда; `temp` сохранён для совместимости.
+- История хранится в `um_store` с именем серийного номера датчика, поэтому в ответе есть history для каждого датчика и суммарная `history` с `name: "onewire"` (отсортирована по времени).
+- Если измерений ещё нет, `history` у датчика равен `null` (а не `{"error":"no data"}`).
+- `um_store_save()`/`um_store_load()` сейчас заглушки: история живёт только в оперативной памяти и сбрасывается после перезагрузки.
