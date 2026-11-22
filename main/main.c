@@ -201,7 +201,7 @@ void um_main_event_handler(void *arg, esp_event_base_t base, int32_t id, void *d
                 payload->category,
                 payload->serial,
                 payload->value,
-                false);
+                payload->use_webhooks);
         }
         break;
     }
@@ -418,13 +418,12 @@ void um_main_device_handler(void *args)
                     float ow_temp;
                     if (um_onewire_read_temperature(sensor->address, &ow_temp) == ESP_OK)
                     {
-                        publish_sensor_data(UM_CAP_ONEWIRE, UM_CATEGORY_ONEWIRE,
-                                            sensor->serial, ow_temp, true);
                         um_event_sensor_payload_t ow_payload = {
                             .category = UM_CATEGORY_ONEWIRE,
                             .capability = (uint8_t)UM_CAP_ONEWIRE,
                             .serial = sensor->serial,
-                            .value = sensor->temperature};
+                            .value = sensor->temperature,
+                            .use_webhooks = true};
                         um_event_publish(UMNI_EVENT_SENSOR_CHANGED,
                                          &ow_payload,
                                          sizeof(um_event_sensor_payload_t),
@@ -439,7 +438,6 @@ void um_main_device_handler(void *args)
         float temp1;
         if (um_ntc_read_temperature(UM_NTC_CHANNEL_1, &temp1) == ESP_OK)
         {
-            publish_sensor_data(UM_CAP_NTC1, UM_CATEGORY_NTC, NULL, temp1, false);
             um_event_sensor_payload_t ntc1_payload = {
                 .category = UM_CATEGORY_NTC,
                 .capability = (uint8_t)UM_CAP_NTC1,
@@ -456,7 +454,6 @@ void um_main_device_handler(void *args)
         float temp2;
         if (um_ntc_read_temperature(UM_NTC_CHANNEL_2, &temp2) == ESP_OK)
         {
-            publish_sensor_data(UM_CAP_NTC2, UM_CATEGORY_NTC, NULL, temp2, false);
             um_event_sensor_payload_t ntc2_payload = {
                 .category = UM_CATEGORY_NTC,
                 .capability = (uint8_t)UM_CAP_NTC2,
@@ -473,7 +470,6 @@ void um_main_device_handler(void *args)
         int adc1;
         if (um_adc_read_raw(UM_ADC_CHANNEL_1, &adc1) == ESP_OK)
         {
-            publish_sensor_data(UM_CAP_AI1, UM_CATEGORY_AI, NULL, adc1, false);
             um_event_sensor_payload_t ai1_payload = {
                 .category = UM_CATEGORY_AI,
                 .capability = (uint8_t)UM_CAP_AI1,
@@ -490,7 +486,6 @@ void um_main_device_handler(void *args)
         int adc2;
         if (um_adc_read_raw(UM_ADC_CHANNEL_2, &adc2) == ESP_OK)
         {
-            publish_sensor_data(UM_CAP_AI2, UM_CATEGORY_AI, NULL, adc2, false);
             um_event_sensor_payload_t ai2_payload = {
                 .category = UM_CATEGORY_AI,
                 .capability = (uint8_t)UM_CAP_AI2,

@@ -7,6 +7,7 @@
 #ifndef UM_EVENTS_H
 #define UM_EVENTS_H
 
+#include <stdbool.h>
 #include "esp_event.h"
 
 #ifdef __cplusplus
@@ -55,6 +56,7 @@ extern "C"
         uint8_t capability;
         float value;
         const char *serial;
+        bool use_webhooks; // отправлять ли webhooks при публикации события в publisher
     } um_event_sensor_payload_t;
 
     /**
