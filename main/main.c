@@ -510,8 +510,12 @@ void um_main_device_handler(void *args)
 void shutdown_handler()
 {
     ESP_LOGI(TAG, "Shutdown handler called. Performing cleanup...");
+#if UM_FEATURE_ENABLED(INPUTS) || UM_FEATURE_ENABLED(OUTPUTS)
     um_dio_off_no_nvs();
+#endif
+#if UM_FEATURE_ENABLED(OPENCOLLECTORS)
     um_opencollectors_all_off();
+#endif
 }
 
 void app_main(void)

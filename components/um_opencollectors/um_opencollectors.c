@@ -171,9 +171,9 @@ esp_err_t um_opencollectors_save_to_nvs(void)
 
 esp_err_t um_opencollectors_set(um_oc_channel_t channel, um_oc_state_t state)
 {
+#if UM_FEATURE_ENABLED(OC1)
     if (channel == UM_OC_CHANNEL_1)
     {
-#if UM_FEATURE_ENABLED(OC1)
         if (!channels[UM_OC_CHANNEL_1].enabled)
         {
             return ESP_ERR_INVALID_STATE;
@@ -199,14 +199,12 @@ esp_err_t um_opencollectors_set(um_oc_channel_t channel, um_oc_state_t state)
                          portMAX_DELAY);
 
         return ESP_OK;
-#else
-        ESP_LOGE(TAG, "OC1 not enabled in Kconfig");
-        return ESP_ERR_NOT_SUPPORTED;
-#endif
     }
-    else if (channel == UM_OC_CHANNEL_2)
-    {
+#endif
+
 #if UM_FEATURE_ENABLED(OC2)
+    if (channel == UM_OC_CHANNEL_2)
+    {
         if (!channels[UM_OC_CHANNEL_2].enabled)
         {
             return ESP_ERR_INVALID_STATE;
@@ -231,43 +229,37 @@ esp_err_t um_opencollectors_set(um_oc_channel_t channel, um_oc_state_t state)
                          sizeof(um_event_sensor_payload_t),
                          portMAX_DELAY);
         return ESP_OK;
-#else
-        ESP_LOGE(TAG, "OC2 not enabled in Kconfig");
-        return ESP_ERR_NOT_SUPPORTED;
-#endif
     }
+#endif
 
     return ESP_ERR_INVALID_ARG;
 }
 
 esp_err_t um_opencollectors_get(um_oc_channel_t channel, um_oc_state_t *state)
 {
+#if UM_FEATURE_ENABLED(OC1)
     if (channel == UM_OC_CHANNEL_1)
     {
-#if UM_FEATURE_ENABLED(OC1)
         if (!channels[UM_OC_CHANNEL_1].enabled)
         {
             return ESP_ERR_INVALID_STATE;
         }
         *state = channels[UM_OC_CHANNEL_1].state;
         return ESP_OK;
-#else
-        return ESP_ERR_NOT_SUPPORTED;
-#endif
     }
-    else if (channel == UM_OC_CHANNEL_2)
-    {
+#endif
+
 #if UM_FEATURE_ENABLED(OC2)
+    if (channel == UM_OC_CHANNEL_2)
+    {
         if (!channels[UM_OC_CHANNEL_2].enabled)
         {
             return ESP_ERR_INVALID_STATE;
         }
         *state = channels[UM_OC_CHANNEL_2].state;
         return ESP_OK;
-#else
-        return ESP_ERR_NOT_SUPPORTED;
-#endif
     }
+#endif
 
     return ESP_ERR_INVALID_ARG;
 }

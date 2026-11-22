@@ -805,6 +805,7 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
                 um_ntc_get_last_temperature(UM_NTC_CHANNEL_2, &temp2);
                 cJSON_AddNumberToObject(data, "value", temp2);
             }
+#if UM_FEATURE_ENABLED(AI1)
             else if (cap == UM_CAP_AI1)
             {
                 data = cJSON_CreateObject();
@@ -812,6 +813,8 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
                 um_adc_get_last_raw(UM_ADC_CHANNEL_1, &ai1);
                 cJSON_AddNumberToObject(data, "value", ai1);
             }
+#endif
+#if UM_FEATURE_ENABLED(AI2)
             else if (cap == UM_CAP_AI2)
             {
                 data = cJSON_CreateObject();
@@ -819,6 +822,7 @@ static esp_err_t um_webserver_state_handler(httpd_req_t *req, cJSON *input, cJSO
                 um_adc_get_last_raw(UM_ADC_CHANNEL_2, &ai2);
                 cJSON_AddNumberToObject(data, "value", ai2);
             }
+#endif
             else if (cap == UM_CAP_ONEWIRE)
             {
                 data = cJSON_CreateArray();

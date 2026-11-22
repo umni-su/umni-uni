@@ -7,6 +7,7 @@
 #include "um_storage.h"
 #include "um_events.h"
 #include "um_capabilities.h"
+#include "base_config.h"
 #include "um_dio.h"
 #include "um_opencollectors.h"
 #include "um_opentherm.h"
@@ -125,18 +126,22 @@ static void execute_action(uint32_t cap, const char *subtype, uint8_t action)
         return;
     }
     // OpenCollectors
+#if UM_FEATURE_ENABLED(OC1)
     if (cap == UM_CAP_OC1)
     {
         um_opencollectors_set(UM_OC_CHANNEL_1, action ? UM_OC_STATE_ON : UM_OC_STATE_OFF);
         ESP_LOGI(TAG, "Set OC1 to %d", action);
         return;
     }
+#endif
+#if UM_FEATURE_ENABLED(OC2)
     if (cap == UM_CAP_OC2)
     {
         um_opencollectors_set(UM_OC_CHANNEL_2, action ? UM_OC_STATE_ON : UM_OC_STATE_OFF);
         ESP_LOGI(TAG, "Set OC2 to %d", action);
         return;
     }
+#endif
     // OpenTherm
     if (cap == UM_CAP_OPENTHERM)
     {

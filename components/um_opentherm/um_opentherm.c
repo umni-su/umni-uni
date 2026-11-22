@@ -552,7 +552,7 @@ void um_opentherm_control_task_handler(void *pvParameter)
     ESP_LOGI(TAG, "OpenTherm control task started");
 
     // Инициализация
-    esp_err_t err = esp_ot_init(GPIO_NUM_26, GPIO_NUM_25, false, ot_callback);
+    esp_err_t err = esp_ot_init(CONFIG_UM_CFG_OT_IN_GPIO, CONFIG_UM_CFG_OT_OUT_GPIO, false, ot_callback);
     if (err != ESP_OK)
     {
         ESP_LOGE(TAG, "Init failed: %d", err);

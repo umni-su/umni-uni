@@ -51,4 +51,4 @@ set(SDKCONFIG_DEFAULTS
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 idf_build_set_property(MINIMAL_BUILD OFF)
 
-project(umni-uni)
+project(umni-${UMNI_DEVICE})

@@ -4,6 +4,7 @@
 #include "um_capabilities.h"
 #include <string.h>
 #include <esp_log.h>
+#include "base_config.h"
 
 static const char *TAG = "um_oc_config";
 static const char *OC_CONFIG_PATH = "/spiffs/opencollectors.json";
@@ -173,14 +174,20 @@ char *um_oc_config_get_json(void)
 
     for (int i = 0; i < oc_config.channel_count; i++)
     {
+#if UM_FEATURE_ENABLED(OC1) || UM_FEATURE_ENABLED(OC2)
         um_oc_state_t state = UM_OC_STATE_OFF;
         um_opencollectors_get(oc_config.channels[i].channel, &state);
+#endif
 
         cJSON *item = cJSON_CreateObject();
         cJSON_AddNumberToObject(item, "index", oc_config.channels[i].channel);
         cJSON_AddStringToObject(item, "label", oc_config.channels[i].label);
         cJSON_AddBoolToObject(item, "active", oc_config.channels[i].active);
+#if UM_FEATURE_ENABLED(OC1) || UM_FEATURE_ENABLED(OC2)
         cJSON_AddBoolToObject(item, "state", (state == UM_OC_STATE_ON));
+#else
+        cJSON_AddBoolToObject(item, "state", false);
+#endif
         cJSON_AddItemToArray(channels_array, item);
     }
 

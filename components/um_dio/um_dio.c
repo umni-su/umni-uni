@@ -45,8 +45,8 @@ bool config_mode = false;
 #define I2C_INPUT_ADDR 0x26
 #define INT_PIN CONFIG_UM_CFG_PCF_INT
 
-#define UM_INPUT_PORT_FN_BTN 6
-#define UM_INPUT_PORT_CONFIG 7
+#define UM_INPUT_PORT_FN_BTN 4 // 6
+#define UM_INPUT_PORT_CONFIG 5 // 7
 
 /* Input mapping from config index to port index */
 const uint8_t input_index_map[] = {
@@ -102,8 +102,11 @@ static void input_monitor_task(void *arg)
             /* Read current input states */
             if (pcf8574_port_read(&pcf8574_input_dev, &new_state) == ESP_OK)
             {
+                esp_err_t r = pcf8574_port_read(&pcf8574_input_dev, &new_state);
+
+                if (r == ESP_OK && new_state != input_data)
                 /* Check for changes */
-                if (new_state != input_data)
+                // if (new_state != input_data)
                 {
                     uint8_t changed = input_data ^ new_state;
                     /* Log changes for each input */
@@ -115,10 +118,7 @@ static void input_monitor_task(void *arg)
                             bool old_state = (input_data >> (input_index_map[i])) & 0x01;
                             bool new_bit = (new_state >> (input_index_map[i])) & 0x01;
 
-                            ESP_LOGI(TAG, "Input %d (iter-%d) changed: %d -> %d",
-                                     input_index_map[i], i + 1, old_state, new_bit);
-
-                            uint8_t cap = UM_CAP_NONE;
+                                                        uint8_t cap = UM_CAP_NONE;
 
                             /* Check if specific output is enabled */
                             switch (input_index_map[i])
@@ -157,6 +157,9 @@ static void input_monitor_task(void *arg)
                                 ESP_LOGE(TAG, "Input %d not enabled", input_index_map[i]);
                                 continue;
                             }
+
+                            ESP_LOGI(TAG, "Input %d (iter-%d) changed: %d -> %d",
+                                     input_index_map[i], i + 1, old_state, new_bit);
 
                             int state = (int)new_bit;
                             um_event_sensor_payload_t payload = {
